@@ -2,7 +2,7 @@
 # OpenAI-совместимых (Gemini, Groq, OpenRouter, Mistral, Ollama).
 anthropic>=0.86
 openai>=1.40
-python-telegram-bot[job-queue]>=21.0
+python-telegram-bot[job-queue,socks]>=21.0
 APScheduler>=3.10
 openpyxl>=3.1
 pydantic>=2.7

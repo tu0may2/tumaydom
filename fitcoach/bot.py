@@ -452,7 +452,13 @@ def build_application(settings: Settings | None = None) -> Application:
     if not settings.telegram_bot_token:
         raise RuntimeError("TELEGRAM_BOT_TOKEN не задан — заполни .env")
 
-    application = Application.builder().token(settings.telegram_bot_token).build()
+    builder = Application.builder().token(settings.telegram_bot_token)
+    if settings.telegram_proxy:
+        # Прокси нужен там, где Telegram блокируется. Запросы к модели идут мимо него.
+        builder = builder.proxy(settings.telegram_proxy)
+        builder = builder.get_updates_proxy(settings.telegram_proxy)
+        log.info("Telegram через прокси: %s", settings.telegram_proxy)
+    application = builder.build()
     application.bot_data.update(
         {"db": Database(settings.db_path), "llm": LLM(), "settings": settings}
     )

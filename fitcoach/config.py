@@ -26,6 +26,8 @@ class Settings(BaseSettings):
 
     telegram_bot_token: str = Field(default="", alias="TELEGRAM_BOT_TOKEN")
     telegram_owner_chat_id: int | None = Field(default=None, alias="TELEGRAM_OWNER_CHAT_ID")
+    # Прокси только для Telegram: модель при этом остаётся локальной и идёт напрямую.
+    telegram_proxy: str = Field(default="", alias="FITCOACH_TELEGRAM_PROXY")
 
     provider: str = Field(default="ollama", alias="FITCOACH_PROVIDER")
     api_key: str = Field(default="", alias="FITCOACH_API_KEY")

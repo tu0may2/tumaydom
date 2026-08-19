@@ -167,6 +167,7 @@ python -m fitcoach.doctor
 |---|---|---|
 | `TELEGRAM_BOT_TOKEN` | — | токен бота |
 | `TELEGRAM_OWNER_CHAT_ID` | — | чат для рассылок |
+| `FITCOACH_TELEGRAM_PROXY` | — | прокси только для Telegram, если он блокируется |
 | `FITCOACH_PROVIDER` | `ollama` | провайдер модели |
 | `FITCOACH_API_KEY` | — | ключ; можно вместо него `GEMINI_API_KEY` и т.п. |
 | `FITCOACH_MODEL` | по провайдеру | переопределить модель |
