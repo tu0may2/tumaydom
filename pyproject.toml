@@ -1,0 +1,11 @@
+[project]
+name = "fitcoach-agent"
+version = "0.1.0"
+description = "ИИ-агент для анализа тренировок, сна и питания с дайджестом в Telegram"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["fitcoach*"]
