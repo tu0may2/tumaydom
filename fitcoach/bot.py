@@ -32,7 +32,7 @@ from .config import Settings, get_settings
 from .db import Database
 from .export import export_workbook
 from .ingest.files import load_file
-from .ingest.parser import apply_ingest, looks_like_question, parse_message
+from .ingest.parser import apply_ingest, is_greeting, looks_like_question, parse_message
 from .llm import LLM
 
 log = logging.getLogger(__name__)
@@ -268,6 +268,13 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     db.update_profile(user_id, {}, chat_id=update.effective_chat.id)
     db.add_dialog(user_id, "user", text)
 
+    # Приветствие не стоит прогона локальной модели — отвечаем сразу.
+    if is_greeting(text):
+        reply = _greeting_reply(db, user_id)
+        db.add_dialog(user_id, "assistant", reply)
+        await _send(update, reply)
+        return
+
     async with _Typing(update):
         try:
             # Вопрос без цифр разбирать не нужно — экономим один запрос к модели,
@@ -286,6 +293,24 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
         await _handle_parsed(update, db, llm, user_id, parsed, source="text", raw=text,
                              question=text)
+
+
+def _greeting_reply(db: Database, user_id: int) -> str:
+    """Мгновенный ответ на «привет» — с подсказкой, что делать дальше."""
+    profile = db.get_profile(user_id)
+    session = today_session(db, user_id)
+
+    if not profile:
+        return ("Привет. Расскажи о себе — возраст, рост, вес, цель, сколько дней "
+                "в неделю тренируешься, какой инвентарь и есть ли ограничения. "
+                "Дальше присылай тренировки: «жим 80x5x5 RPE 8» или «бег 8 км за 42 мин».")
+    if session and session.get("kind") != "rest":
+        return (f"Привет. Сегодня по плану: {session.get('title')}. "
+                "Как отработаешь — пришли подходы, разберу и посчитаю прогресс.")
+    if session:
+        return "Привет. Сегодня по плану отдых. Если взвешивался — пришли вес."
+    return ("Привет. Присылай тренировку («присед 100x5x5 RPE 8»), скриншот сна "
+            "или вопрос. /progress покажет динамику, /digest — разбор на сегодня.")
 
 
 async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -448,5 +473,23 @@ def build_application(settings: Settings | None = None) -> Application:
     application.add_handler(MessageHandler(filters.Document.ALL, on_document))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
     application.add_error_handler(on_error)
+    application.post_init = _warm_up
 
     return application
+
+
+async def _warm_up(application: Application) -> None:
+    """Разбудить модель на старте, чтобы первый ответ не ждал загрузки весов."""
+    llm = application.bot_data["llm"]
+
+    async def run() -> None:
+        try:
+            await asyncio.to_thread(
+                llm.text, "ок", system="Отвечай одним словом.", max_tokens=8
+            )
+            log.info("Модель %s прогрета и готова", llm.model)
+        except Exception as exc:
+            log.warning("Прогрев модели не удался (%s) — проверь: python -m fitcoach.doctor",
+                        exc)
+
+    asyncio.create_task(run())
