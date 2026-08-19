@@ -63,13 +63,26 @@ def weekly_review(llm: LLM, db: Database, user_id: int) -> tuple[str, dict[str, 
 
 
 def answer_question(llm: LLM, db: Database, user_id: int, question: str) -> str:
-    """Свободный вопрос: питание, техника, корректировка плана."""
+    """Свободный вопрос: питание, техника, корректировка плана.
+
+    В промпт идут последние реплики диалога, чтобы можно было спрашивать
+    «а если наоборот?» и не пересказывать всё заново.
+    """
     context = build_context(db, user_id)
-    prompt = (
-        f"Вопрос спортсмена:\n{question}\n\n"
-        f"Отвечай с опорой на его данные. Контекст:\n{render_context(context)}"
-    )
-    text = llm.text(prompt, system=coach_system(), effort=EFFORT_ANALYSIS, max_tokens=4000)
+    history = db.recent_dialog(user_id)
+
+    parts = []
+    if history:
+        rendered = "\n".join(
+            f"{'Спортсмен' if turn['role'] == 'user' else 'Ты'}: {turn['content']}"
+            for turn in history
+        )
+        parts.append(f"Предыдущие реплики этого разговора:\n{rendered}")
+    parts.append(f"Новый вопрос спортсмена:\n{question}")
+    parts.append(f"Отвечай с опорой на его данные. Контекст:\n{render_context(context)}")
+
+    text = llm.text("\n\n".join(parts), system=coach_system(),
+                    effort=EFFORT_ANALYSIS, max_tokens=4000)
     db.log_message(user_id, "chat", text)
     return text
 

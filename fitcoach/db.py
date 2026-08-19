@@ -84,7 +84,21 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at TEXT    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(user_id, created_at);
+
+CREATE TABLE IF NOT EXISTS dialog (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL,
+    role       TEXT    NOT NULL,             -- user | assistant
+    content    TEXT    NOT NULL,
+    created_at TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_dialog_user ON dialog(user_id, id);
 """
+
+# Сколько реплик диалога помнить. Больше — дороже для локальной модели.
+DIALOG_TURNS = 8
+DIALOG_CHARS = 600
+DIALOG_KEEP = 60
 
 
 class Database:
@@ -271,6 +285,35 @@ class Database:
                 "INSERT INTO messages (user_id, kind, body, created_at) VALUES (?,?,?,?)",
                 (user_id, kind, body, _now()),
             )
+
+    # ------------------------------------------------------------------ диалог
+
+    def add_dialog(self, user_id: int, role: str, content: str) -> None:
+        """Запомнить реплику. Длинные ответы храним обрезанными."""
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO dialog (user_id, role, content, created_at) VALUES (?,?,?,?)",
+                (user_id, role, content.strip()[:DIALOG_CHARS], _now()),
+            )
+            # Чистим хвост, чтобы таблица не росла бесконечно.
+            conn.execute(
+                """DELETE FROM dialog WHERE user_id = ? AND id NOT IN (
+                       SELECT id FROM dialog WHERE user_id = ? ORDER BY id DESC LIMIT ?)""",
+                (user_id, user_id, DIALOG_KEEP),
+            )
+
+    def recent_dialog(self, user_id: int, limit: int = DIALOG_TURNS) -> list[dict[str, str]]:
+        """Последние реплики в хронологическом порядке."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT role, content FROM dialog WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+                (user_id, limit),
+            ).fetchall()
+        return [{"role": r["role"], "content": r["content"]} for r in reversed(rows)]
+
+    def clear_dialog(self, user_id: int) -> None:
+        with self.connect() as conn:
+            conn.execute("DELETE FROM dialog WHERE user_id = ?", (user_id,))
 
     def last_message(self, user_id: int, kind: str) -> dict[str, Any] | None:
         with self.connect() as conn:

@@ -77,3 +77,23 @@ def apply_ingest(db: Database, user_id: int, parsed: dict[str, Any], *, source: 
         counts["profile"] = len(patch)
 
     return counts
+
+
+QUESTION_WORDS = ("что", "как", "почему", "зачем", "когда", "сколько", "какой", "какая",
+                  "какие", "стоит ли", "можно", "нужно", "посоветуй", "подскажи", "объясни",
+                  "сможешь", "умеешь", "а если", "лучше")
+
+
+def looks_like_question(text: str) -> bool:
+    """Похоже на вопрос, а не на данные тренировки.
+
+    Нужно, чтобы не гонять локальную модель дважды: разбор данных в таком
+    сообщении всё равно ничего не найдёт. Цифры — признак данных, поэтому
+    сообщения с числами всегда идут в полный разбор.
+    """
+    stripped = text.strip().lower()
+    if not stripped or any(char.isdigit() for char in stripped):
+        return False
+    if stripped.endswith("?"):
+        return True
+    return any(stripped.startswith(word) for word in QUESTION_WORDS)

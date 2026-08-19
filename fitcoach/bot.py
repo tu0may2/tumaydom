@@ -31,7 +31,7 @@ from .config import Settings, get_settings
 from .db import Database
 from .export import export_workbook
 from .ingest.files import load_file
-from .ingest.parser import apply_ingest, parse_message
+from .ingest.parser import apply_ingest, looks_like_question, parse_message
 from .llm import LLM
 
 log = logging.getLogger(__name__)
@@ -52,6 +52,7 @@ HELP = """Я веду твои тренировки, сон и питание.
 /digest — прислать утренний разбор прямо сейчас
 /week — недельный разбор и новый план
 /export — выгрузка всей статистики в Excel
+/forget — забыть контекст разговора (данные останутся)
 /profile — показать профиль (цель, антропометрия, ограничения)
 /whoami — мой chat_id
 """
@@ -69,6 +70,52 @@ async def _send(update: Update, text: str) -> None:
     """Отправка с разбиением на куски по лимиту Telegram."""
     for chunk in _chunks(text, MAX_TELEGRAM_CHARS):
         await update.effective_message.reply_text(chunk)
+
+
+class _Typing:
+    """Держит статус «печатает» всё время, пока думает модель.
+
+    Telegram гасит его через 5 секунд, а локальная модель отвечает минутами —
+    без этого выглядит так, будто бот завис.
+    """
+
+    def __init__(self, update: Update) -> None:
+        self._chat = update.effective_chat
+        self._task: asyncio.Task | None = None
+
+    async def _loop(self) -> None:
+        while True:
+            try:
+                await self._chat.send_action(ChatAction.TYPING)
+            except Exception:  # сеть моргнула — не повод падать
+                pass
+            await asyncio.sleep(4)
+
+    async def __aenter__(self) -> "_Typing":
+        self._task = asyncio.create_task(self._loop())
+        return self
+
+    async def __aexit__(self, *exc_info) -> None:
+        if self._task:
+            self._task.cancel()
+
+
+def _explain(exc: Exception) -> str:
+    """Перевод ошибки в понятную фразу с указанием, что чинить."""
+    text = str(exc).lower()
+    if "connect" in text or "refused" in text:
+        return ("Модель не отвечает — похоже, Ollama не запущена. "
+                "Проверь значок ламы в трее и запусти её.")
+    if "timeout" in text or "timed out" in text:
+        return ("Модель не успела ответить. Для локальной модели это бывает на "
+                "длинных разборах — попробуй ещё раз или возьми модель полегче "
+                "(FITCOACH_MODEL=gemma3:4b).")
+    if "not found" in text and "model" in text:
+        return "Модель не скачана — выполни в PowerShell: ollama pull gemma3:12b"
+    if "json" in text:
+        return ("Модель вернула ответ, который не удалось разобрать. "
+                "Повтори запрос; если повторяется — нужна модель посильнее.")
+    return f"Что-то пошло не так: {exc}"
 
 
 def _chunks(text: str, size: int) -> list[str]:
@@ -154,8 +201,14 @@ async def cmd_plan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def cmd_digest(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     db, llm, _ = _deps(context)
-    await update.effective_chat.send_action(ChatAction.TYPING)
-    text = await asyncio.to_thread(morning_digest, llm, db, update.effective_user.id)
+    await _send(update, "Собираю разбор, это займёт до нескольких минут…")
+    async with _Typing(update):
+        try:
+            text = await asyncio.to_thread(morning_digest, llm, db, update.effective_user.id)
+        except Exception as exc:
+            log.exception("Дайджест не собрался")
+            await _send(update, _explain(exc))
+            return
     await _send(update, text)
 
 
@@ -168,7 +221,7 @@ async def cmd_export(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await _send(update, "Выгружать нечего — сначала пришли хотя бы пару тренировок.")
         return
 
-    await update.effective_chat.send_action(ChatAction.UPLOAD_DOCUMENT)
+    await _send(update, "Собираю файл…")
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / f"fitcoach-{date.today().isoformat()}.xlsx"
         await asyncio.to_thread(export_workbook, db, user_id, path, llm=llm)
@@ -182,8 +235,18 @@ async def cmd_export(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
 async def cmd_week(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     db, llm, _ = _deps(context)
-    await update.effective_chat.send_action(ChatAction.TYPING)
-    review, _plan = await asyncio.to_thread(weekly_review, llm, db, update.effective_user.id)
+    # Два запроса к модели с полной историей — на локальной это долго.
+    await _send(update, "Разбираю неделю и собираю план. На локальной модели "
+                        "это может занять 5–10 минут, я напишу, когда будет готово.")
+    async with _Typing(update):
+        try:
+            review, _plan = await asyncio.to_thread(
+                weekly_review, llm, db, update.effective_user.id
+            )
+        except Exception as exc:
+            log.exception("Недельный разбор не собрался")
+            await _send(update, _explain(exc))
+            return
     await _send(update, review + "\n\nНовый план сохранён — посмотреть: /plan")
 
 
@@ -195,11 +258,26 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     text = update.effective_message.text or ""
     db.update_profile(user_id, {}, chat_id=update.effective_chat.id)
+    db.add_dialog(user_id, "user", text)
 
-    await update.effective_chat.send_action(ChatAction.TYPING)
-    parsed = await asyncio.to_thread(parse_message, llm, text=text)
-    await _handle_parsed(update, db, llm, user_id, parsed, source="text", raw=text,
-                         question=text)
+    async with _Typing(update):
+        try:
+            # Вопрос без цифр разбирать не нужно — экономим один запрос к модели,
+            # а для локальной это половина времени ответа.
+            if looks_like_question(text):
+                answer = await asyncio.to_thread(answer_question, llm, db, user_id, text)
+                db.add_dialog(user_id, "assistant", answer)
+                await _send(update, answer)
+                return
+
+            parsed = await asyncio.to_thread(parse_message, llm, text=text)
+        except Exception as exc:
+            log.exception("Обработка текста не удалась")
+            await _send(update, _explain(exc))
+            return
+
+        await _handle_parsed(update, db, llm, user_id, parsed, source="text", raw=text,
+                             question=text)
 
 
 async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -212,16 +290,22 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     blob = bytes(await telegram_file.download_as_bytearray())
     encoded = base64.standard_b64encode(blob).decode("utf-8")
 
-    await update.effective_chat.send_action(ChatAction.TYPING)
-    try:
-        parsed = await asyncio.to_thread(
-            parse_message, llm, text=message.caption or "", images=[(encoded, "image/jpeg")]
-        )
-    except ValueError as exc:  # провайдер без vision
-        await _send(update, str(exc))
-        return
-    await _handle_parsed(update, db, llm, user_id, parsed, source="photo",
-                         raw=message.caption, question=message.caption)
+    async with _Typing(update):
+        try:
+            parsed = await asyncio.to_thread(
+                parse_message, llm, text=message.caption or "",
+                images=[(encoded, "image/jpeg")]
+            )
+        except ValueError as exc:  # провайдер без vision
+            await _send(update, str(exc))
+            return
+        except Exception as exc:
+            log.exception("Разбор фото не удался")
+            await _send(update, _explain(exc))
+            return
+
+        await _handle_parsed(update, db, llm, user_id, parsed, source="photo",
+                             raw=message.caption, question=message.caption)
 
 
 async def on_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -236,27 +320,32 @@ async def on_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     telegram_file = await document.get_file()
     blob = bytes(await telegram_file.download_as_bytearray())
 
-    await update.effective_chat.send_action(ChatAction.TYPING)
-    try:
-        result = await asyncio.to_thread(load_file, document.file_name or "", blob)
-    except ValueError as exc:
-        await _send(update, str(exc))
-        return
+    async with _Typing(update):
+        try:
+            result = await asyncio.to_thread(load_file, document.file_name or "", blob)
+        except ValueError as exc:
+            await _send(update, str(exc))
+            return
 
-    if result["text"]:  # формат не распознали — отдаём модели как текст
-        parsed = await asyncio.to_thread(parse_message, llm, text=result["text"])
-    else:
-        parsed = {
-            "intent": "workout" if result["workouts"] else "sleep",
-            "workouts": result["workouts"],
-            "sleep": result["sleep"],
-            "metrics": [],
-            "profile_patch": {},
-            "comment": "",
-        }
+        try:
+            if result["text"]:  # формат не распознали — отдаём модели как текст
+                parsed = await asyncio.to_thread(parse_message, llm, text=result["text"])
+            else:
+                parsed = {
+                    "intent": "workout" if result["workouts"] else "sleep",
+                    "workouts": result["workouts"],
+                    "sleep": result["sleep"],
+                    "metrics": [],
+                    "profile_patch": {},
+                    "comment": "",
+                }
+        except Exception as exc:
+            log.exception("Разбор файла не удался")
+            await _send(update, _explain(exc))
+            return
 
-    await _handle_parsed(update, db, llm, user_id, parsed, source="file",
-                         raw=document.file_name)
+        await _handle_parsed(update, db, llm, user_id, parsed, source="file",
+                             raw=document.file_name)
 
 
 async def _handle_parsed(
@@ -275,6 +364,7 @@ async def _handle_parsed(
     if counts["workouts"]:
         workout = (parsed.get("workouts") or [])[-1]
         text = await asyncio.to_thread(analyze_workout, llm, db, user_id, workout)
+        db.add_dialog(user_id, "assistant", text)
         await _send(update, text)
         return
 
@@ -291,17 +381,36 @@ async def _handle_parsed(
 
     if question:
         text = await asyncio.to_thread(answer_question, llm, db, user_id, question)
+        db.add_dialog(user_id, "assistant", text)
         await _send(update, text)
         return
 
     await _send(update, parsed.get("comment") or "Не понял, что это. Опиши словами.")
 
 
+async def on_media(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Видео, кружки, голосовые: разбирать их бот не умеет."""
+    await _send(
+        update,
+        "Видео и голосовые я не разбираю — оценить технику по ролику не смогу. "
+        "Опиши подход текстом («присед 100x5, колени сводит на третьем повторе»), "
+        "или пришли скриншот статистики из Garmin.",
+    )
+
+
+async def cmd_forget(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Забыть контекст разговора, но не данные тренировок."""
+    db, _, _ = _deps(context)
+    db.clear_dialog(update.effective_user.id)
+    await _send(update, "Забыл, о чём мы говорили. Тренировки, сон и замеры на месте.")
+
+
 async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     log.exception("Ошибка при обработке апдейта", exc_info=context.error)
     if isinstance(update, Update) and update.effective_message:
         await update.effective_message.reply_text(
-            "Что-то пошло не так при обработке. Попробуй ещё раз или пришли данные текстом."
+            _explain(context.error) if isinstance(context.error, Exception)
+            else "Что-то пошло не так при обработке. Попробуй ещё раз."
         )
 
 
@@ -323,7 +432,10 @@ def build_application(settings: Settings | None = None) -> Application:
     application.add_handler(CommandHandler("digest", cmd_digest))
     application.add_handler(CommandHandler("week", cmd_week))
     application.add_handler(CommandHandler("export", cmd_export))
+    application.add_handler(CommandHandler("forget", cmd_forget))
     application.add_handler(MessageHandler(filters.PHOTO, on_photo))
+    application.add_handler(MessageHandler(
+        filters.VIDEO | filters.VIDEO_NOTE | filters.VOICE | filters.AUDIO, on_media))
     application.add_handler(MessageHandler(filters.Document.ALL, on_document))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
     application.add_error_handler(on_error)
