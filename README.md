@@ -59,6 +59,9 @@
 
 ## Запуск
 
+Пошаговая инструкция для Windows с нуля — [`docs/windows.md`](docs/windows.md).
+Ниже краткий вариант для macOS и Linux.
+
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
