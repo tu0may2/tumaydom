@@ -24,6 +24,7 @@ from .analysis.coach import (
     analyze_workout,
     answer_question,
     morning_digest,
+    progress_report,
     today_session,
     weekly_review,
 )
@@ -51,6 +52,7 @@ HELP = """Я веду твои тренировки, сон и питание.
 /plan — план на неделю
 /digest — прислать утренний разбор прямо сейчас
 /week — недельный разбор и новый план
+/progress — рост силовых и беговых по каждому упражнению
 /export — выгрузка всей статистики в Excel
 /forget — забыть контекст разговора (данные останутся)
 /profile — показать профиль (цель, антропометрия, ограничения)
@@ -210,6 +212,12 @@ async def cmd_digest(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             await _send(update, _explain(exc))
             return
     await _send(update, text)
+
+
+async def cmd_progress(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Динамика силовых и кардио. Считается кодом, поэтому отвечает мгновенно."""
+    db, _, _ = _deps(context)
+    await _send(update, progress_report(db, update.effective_user.id))
 
 
 async def cmd_export(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -431,6 +439,7 @@ def build_application(settings: Settings | None = None) -> Application:
     application.add_handler(CommandHandler("plan", cmd_plan))
     application.add_handler(CommandHandler("digest", cmd_digest))
     application.add_handler(CommandHandler("week", cmd_week))
+    application.add_handler(CommandHandler("progress", cmd_progress))
     application.add_handler(CommandHandler("export", cmd_export))
     application.add_handler(CommandHandler("forget", cmd_forget))
     application.add_handler(MessageHandler(filters.PHOTO, on_photo))

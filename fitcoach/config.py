@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     timezone: str = Field(default="Europe/Moscow", alias="FITCOACH_TIMEZONE")
 
     morning_time: str = Field(default="07:30", alias="FITCOACH_MORNING_TIME")
+    evening_time: str = Field(default="20:30", alias="FITCOACH_EVENING_TIME")
     weekly_day: str = Field(default="sun", alias="FITCOACH_WEEKLY_DAY")
     weekly_time: str = Field(default="19:00", alias="FITCOACH_WEEKLY_TIME")
 

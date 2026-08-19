@@ -178,3 +178,171 @@ def flags(factors: list[dict[str, Any]]) -> list[str]:
         notes.append(f"Средний RPE {current['avg_rpe']} — неделя шла почти на отказ.")
 
     return notes
+
+
+def pace_min_km(workout: dict[str, Any]) -> float | None:
+    """Темп в минутах на километр."""
+    distance = workout.get("distance_km")
+    duration = workout.get("duration_min")
+    if not distance or not duration:
+        return None
+    return round(float(duration) / float(distance), 2)
+
+
+def format_pace(value: float | None) -> str | None:
+    """4.75 -> '4:45'."""
+    if value is None:
+        return None
+    minutes = int(value)
+    seconds = round((value - minutes) * 60)
+    if seconds == 60:
+        minutes, seconds = minutes + 1, 0
+    return f"{minutes}:{seconds:02d}"
+
+
+def _best_set(exercise: dict[str, Any]) -> dict[str, Any] | None:
+    best = None
+    for st in exercise.get("sets") or []:
+        weight, reps = st.get("weight_kg"), st.get("reps")
+        if not weight or not reps:
+            continue
+        estimate = e1rm(float(weight), float(reps))
+        if best is None or estimate > best["e1rm"]:
+            best = {"weight_kg": float(weight), "reps": int(reps), "e1rm": estimate}
+    return best
+
+
+def _volume(exercise: dict[str, Any]) -> float:
+    return round(sum(
+        float(st["weight_kg"]) * float(st["reps"])
+        for st in exercise.get("sets") or []
+        if st.get("weight_kg") and st.get("reps")
+    ), 1)
+
+
+def compare_workout(history: list[dict[str, Any]], workout: dict[str, Any]) -> dict[str, Any]:
+    """Сравнить свежую тренировку с прошлыми: по каждому упражнению и по кардио.
+
+    `history` — прошлые тренировки (без этой). Возвращает готовые цифры,
+    чтобы модель их объясняла, а не считала.
+    """
+    result: dict[str, Any] = {"exercises": [], "cardio": None, "personal_records": []}
+
+    # --- силовая часть: упражнение за упражнением против прошлого раза и рекорда
+    past: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for old in history:
+        for exercise in old.get("exercises") or []:
+            name = (exercise.get("name") or "").strip().lower()
+            best = _best_set(exercise)
+            if name and best:
+                past[name].append({"date": old.get("date"), "volume_kg": _volume(exercise),
+                                   **best})
+
+    for exercise in workout.get("exercises") or []:
+        name = (exercise.get("name") or "").strip().lower()
+        best = _best_set(exercise)
+        if not name or not best:
+            continue
+
+        entry: dict[str, Any] = {
+            "exercise": name,
+            "sets": [
+                {"weight_kg": st.get("weight_kg"), "reps": st.get("reps"), "rpe": st.get("rpe")}
+                for st in exercise.get("sets") or []
+            ],
+            "best_set": f"{best['weight_kg']:g}×{best['reps']}",
+            "e1rm": best["e1rm"],
+            "volume_kg": _volume(exercise),
+        }
+
+        previous = sorted(past.get(name, []), key=lambda p: p["date"] or "")
+        if previous:
+            last = previous[-1]
+            record = max(previous, key=lambda p: p["e1rm"])
+            entry.update({
+                "previous_date": last["date"],
+                "previous_best_set": f"{last['weight_kg']:g}×{last['reps']}",
+                "previous_e1rm": last["e1rm"],
+                "e1rm_change": round(best["e1rm"] - last["e1rm"], 1),
+                "volume_change_kg": round(entry["volume_kg"] - last["volume_kg"], 1),
+                "record_e1rm": record["e1rm"],
+                "sessions_before": len(previous),
+            })
+            if best["e1rm"] > record["e1rm"]:
+                entry["is_record"] = True
+                result["personal_records"].append(
+                    f"{name}: {entry['best_set']} (оценка 1ПМ {best['e1rm']} кг, "
+                    f"прошлый рекорд {record['e1rm']})"
+                )
+        else:
+            entry["first_time"] = True
+
+        result["exercises"].append(entry)
+
+    # --- кардио: темп против прошлых пробежек похожей длины
+    pace = pace_min_km(workout)
+    if pace:
+        distance = float(workout["distance_km"])
+        similar = [
+            {"date": old.get("date"), "distance_km": old.get("distance_km"),
+             "pace": pace_min_km(old), "avg_hr": old.get("avg_hr")}
+            for old in history
+            if old.get("kind") == "cardio" and pace_min_km(old)
+            and abs(float(old["distance_km"]) - distance) <= max(1.0, distance * 0.25)
+        ]
+        similar.sort(key=lambda item: item["date"] or "")
+        cardio: dict[str, Any] = {
+            "distance_km": distance,
+            "pace_min_km": pace,
+            "pace_text": format_pace(pace),
+            "avg_hr": workout.get("avg_hr"),
+            "comparable_sessions": len(similar),
+        }
+        if similar:
+            last = similar[-1]
+            fastest = min(similar, key=lambda item: item["pace"])
+            cardio.update({
+                "previous_date": last["date"],
+                "previous_pace": format_pace(last["pace"]),
+                "pace_change_sec_km": round((pace - last["pace"]) * 60),
+                "previous_avg_hr": last["avg_hr"],
+                "best_pace": format_pace(fastest["pace"]),
+            })
+            if pace < fastest["pace"]:
+                cardio["is_record"] = True
+                result["personal_records"].append(
+                    f"бег {distance:g} км: {format_pace(pace)} /км "
+                    f"(прошлый лучший {format_pace(fastest['pace'])})"
+                )
+        result["cardio"] = cardio
+
+    return result
+
+
+def cardio_progress(workouts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Кардио по дистанциям: лучший и последний темп в каждой группе."""
+    buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for workout in workouts:
+        pace = pace_min_km(workout)
+        if workout.get("kind") != "cardio" or not pace:
+            continue
+        distance = float(workout["distance_km"])
+        label = "до 5 км" if distance < 5 else "5–10 км" if distance < 10 else "10+ км"
+        buckets[label].append({"date": workout.get("date"), "pace": pace,
+                               "distance_km": distance, "avg_hr": workout.get("avg_hr")})
+
+    rows = []
+    for label, items in buckets.items():
+        items.sort(key=lambda item: item["date"] or "")
+        fastest = min(items, key=lambda item: item["pace"])
+        rows.append({
+            "bucket": label,
+            "sessions": len(items),
+            "last_pace": format_pace(items[-1]["pace"]),
+            "last_date": items[-1]["date"],
+            "best_pace": format_pace(fastest["pace"]),
+            "best_date": fastest["date"],
+            "change_sec_km": round((items[-1]["pace"] - items[0]["pace"]) * 60),
+        })
+    rows.sort(key=lambda row: row["bucket"])
+    return rows

@@ -10,20 +10,69 @@ from ..db import Database
 from ..llm import LLM, EFFORT_ANALYSIS
 from ..prompts import coach_system, load
 from ..schemas import PLAN_SCHEMA
+from .progress import cardio_progress, compare_workout, exercise_progress
 from .stats import build_context, render_context, week_start
 
 log = logging.getLogger(__name__)
 
 
 def analyze_workout(llm: LLM, db: Database, user_id: int, workout: dict[str, Any]) -> str:
-    """Короткий разбор только что присланной тренировки."""
+    """Разбор присланной тренировки: подходы, 1ПМ, темп, рекорды."""
     context = build_context(db, user_id)
+
+    # Сравниваем с прошлым, исключив только что сохранённую сессию.
+    history = [
+        old for old in db.recent_workouts(user_id, days=365)
+        if not (old.get("date") == workout.get("date")
+                and old.get("title") == workout.get("title"))
+    ]
+    comparison = compare_workout(history, workout)
+
     prompt = (
         f"{load('analysis')}\n\n"
         f"Только что присланная тренировка:\n{render_context(workout)}\n\n"
-        f"История и контекст:\n{render_context(context)}"
+        f"Сравнение с прошлыми (посчитано, не пересчитывай):\n"
+        f"{render_context(comparison)}\n\n"
+        f"Общий контекст:\n{render_context(context)}"
     )
     return llm.text(prompt, system=coach_system(), effort=EFFORT_ANALYSIS, max_tokens=4000)
+
+
+def progress_report(db: Database, user_id: int, days: int = 180) -> str:
+    """Сводка прогресса без обращения к модели — быстро и всегда точно."""
+    workouts = db.recent_workouts(user_id, days=days)
+    strength = exercise_progress(workouts)
+    cardio = cardio_progress(workouts)
+
+    if not strength and not cardio:
+        return "Данных пока нет. Пришли пару тренировок, и здесь появится динамика."
+
+    lines: list[str] = []
+    if strength:
+        lines.append("Силовые (оценка 1ПМ):")
+        for row in strength[:12]:
+            if row["sessions"] < 2:
+                lines.append(f"— {row['exercise']}: {row['best_set']}, "
+                             f"1ПМ ≈ {row['last_e1rm']} (одна сессия)")
+                continue
+            sign = "+" if row["change_kg"] >= 0 else ""
+            lines.append(
+                f"— {row['exercise']}: {row['first_e1rm']} → {row['last_e1rm']} кг "
+                f"({sign}{row['change_kg']}, {sign}{row['change_pct']}%), "
+                f"лучший подход {row['best_set']}, сессий {row['sessions']}"
+            )
+    if cardio:
+        if lines:
+            lines.append("")
+        lines.append("Кардио (темп на км):")
+        for row in cardio:
+            change = row["change_sec_km"]
+            direction = ("быстрее" if change < 0 else "медленнее") if change else "без изменений"
+            lines.append(
+                f"— {row['bucket']}: сейчас {row['last_pace']}, лучший {row['best_pace']} "
+                f"({row['best_date']}), за период {abs(change)} с/км {direction}"
+            )
+    return "\n".join(lines)
 
 
 def morning_digest(llm: LLM, db: Database, user_id: int) -> str:

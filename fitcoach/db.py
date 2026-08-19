@@ -149,6 +149,25 @@ class Database:
             )
             return int(cur.lastrowid)
 
+    def workouts_on(self, user_id: int, day: str) -> list[dict[str, Any]]:
+        """Тренировки за конкретную дату — нужно для вечернего напоминания."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM workouts WHERE user_id = ? AND date = ?", (user_id, day)
+            ).fetchall()
+        return [_workout_row(r) for r in rows]
+
+    def sent_today(self, user_id: int, kind: str) -> bool:
+        """Уже отправляли сообщение такого типа сегодня?"""
+        with self.connect() as conn:
+            row = conn.execute(
+                """SELECT 1 FROM messages
+                   WHERE user_id = ? AND kind = ? AND date(created_at) = date('now')
+                   LIMIT 1""",
+                (user_id, kind),
+            ).fetchone()
+        return row is not None
+
     def recent_workouts(self, user_id: int, days: int = 28) -> list[dict[str, Any]]:
         with self.connect() as conn:
             rows = conn.execute(
