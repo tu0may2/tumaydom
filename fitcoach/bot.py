@@ -5,6 +5,9 @@ from __future__ import annotations
 import asyncio
 import base64
 import logging
+import tempfile
+from datetime import date
+from pathlib import Path
 from typing import Any
 
 from telegram import Update
@@ -26,6 +29,7 @@ from .analysis.coach import (
 )
 from .config import Settings, get_settings
 from .db import Database
+from .export import export_workbook
 from .ingest.files import load_file
 from .ingest.parser import apply_ingest, parse_message
 from .llm import LLM
@@ -47,6 +51,7 @@ HELP = """Я веду твои тренировки, сон и питание.
 /plan — план на неделю
 /digest — прислать утренний разбор прямо сейчас
 /week — недельный разбор и новый план
+/export — выгрузка всей статистики в Excel
 /profile — показать профиль (цель, антропометрия, ограничения)
 /whoami — мой chat_id
 """
@@ -154,6 +159,27 @@ async def cmd_digest(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     await _send(update, text)
 
 
+async def cmd_export(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Собрать .xlsx со всей статистикой и прислать файлом."""
+    db, llm, _ = _deps(context)
+    user_id = update.effective_user.id
+
+    if not db.recent_workouts(user_id, days=365) and not db.recent_sleep(user_id, days=365):
+        await _send(update, "Выгружать нечего — сначала пришли хотя бы пару тренировок.")
+        return
+
+    await update.effective_chat.send_action(ChatAction.UPLOAD_DOCUMENT)
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / f"fitcoach-{date.today().isoformat()}.xlsx"
+        await asyncio.to_thread(export_workbook, db, user_id, path, llm=llm)
+        with path.open("rb") as handle:
+            await update.effective_message.reply_document(
+                document=handle,
+                filename=path.name,
+                caption="Листы: Обзор, Разбор, Недели, Прогресс, Тренировки, Сон, Замеры.",
+            )
+
+
 async def cmd_week(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     db, llm, _ = _deps(context)
     await update.effective_chat.send_action(ChatAction.TYPING)
@@ -187,9 +213,13 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     encoded = base64.standard_b64encode(blob).decode("utf-8")
 
     await update.effective_chat.send_action(ChatAction.TYPING)
-    parsed = await asyncio.to_thread(
-        parse_message, llm, text=message.caption or "", images=[(encoded, "image/jpeg")]
-    )
+    try:
+        parsed = await asyncio.to_thread(
+            parse_message, llm, text=message.caption or "", images=[(encoded, "image/jpeg")]
+        )
+    except ValueError as exc:  # провайдер без vision
+        await _send(update, str(exc))
+        return
     await _handle_parsed(update, db, llm, user_id, parsed, source="photo",
                          raw=message.caption, question=message.caption)
 
@@ -292,6 +322,7 @@ def build_application(settings: Settings | None = None) -> Application:
     application.add_handler(CommandHandler("plan", cmd_plan))
     application.add_handler(CommandHandler("digest", cmd_digest))
     application.add_handler(CommandHandler("week", cmd_week))
+    application.add_handler(CommandHandler("export", cmd_export))
     application.add_handler(MessageHandler(filters.PHOTO, on_photo))
     application.add_handler(MessageHandler(filters.Document.ALL, on_document))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))

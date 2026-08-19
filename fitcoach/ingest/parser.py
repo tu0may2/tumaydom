@@ -7,7 +7,7 @@ from datetime import date
 from typing import Any
 
 from ..db import Database
-from ..llm import LLM, EFFORT_EXTRACT, image_block
+from ..llm import LLM, EFFORT_EXTRACT
 from ..prompts import load
 from ..schemas import INGEST_SCHEMA
 
@@ -36,17 +36,18 @@ def parse_message(
     `images` — список пар (base64, media_type) для скриншотов выгрузок.
     """
     today = today or date.today().isoformat()
-    content: list[dict[str, Any]] = []
-    for data_b64, media_type in images or []:
-        content.append(image_block(data_b64, media_type))
-    content.append(
-        {"type": "text", "text": f"Сегодня {today}.\n\nСообщение пользователя:\n{text or ''}"}
-    )
+    if images and not llm.supports_vision:
+        raise ValueError(
+            f"Провайдер {llm.provider.name} не умеет читать картинки — "
+            "перескажи выкладку текстом или переключись на провайдера с vision."
+        )
 
+    prompt = f"Сегодня {today}.\n\nСообщение пользователя:\n{text or ''}"
     result = llm.json(
-        content,
+        prompt,
         system=load("ingest"),
         schema=INGEST_SCHEMA,
+        images=images,
         effort=EFFORT_EXTRACT,
     )
     return {**EMPTY, **result}
