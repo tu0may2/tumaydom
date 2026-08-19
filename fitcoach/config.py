@@ -27,10 +27,12 @@ class Settings(BaseSettings):
     telegram_bot_token: str = Field(default="", alias="TELEGRAM_BOT_TOKEN")
     telegram_owner_chat_id: int | None = Field(default=None, alias="TELEGRAM_OWNER_CHAT_ID")
 
-    provider: str = Field(default="gemini", alias="FITCOACH_PROVIDER")
+    provider: str = Field(default="ollama", alias="FITCOACH_PROVIDER")
     api_key: str = Field(default="", alias="FITCOACH_API_KEY")
     model: str = Field(default="", alias="FITCOACH_MODEL")
     base_url: str = Field(default="", alias="FITCOACH_BASE_URL")
+    vision: str = Field(default="auto", alias="FITCOACH_VISION")  # auto | on | off
+    request_timeout: float = Field(default=600.0, alias="FITCOACH_TIMEOUT")
 
     db_path: Path = Field(default=Path("data/fitcoach.db"), alias="FITCOACH_DB_PATH")
     timezone: str = Field(default="Europe/Moscow", alias="FITCOACH_TIMEZONE")
@@ -43,6 +45,7 @@ class Settings(BaseSettings):
     def _resolve_api_key(self) -> "Settings":
         """Ключ можно задать и как FITCOACH_API_KEY, и как родное имя провайдера."""
         self.provider = self.provider.lower().strip()
+        self.vision = self.vision.lower().strip() or "auto"
         if not self.api_key:
             env_name = PROVIDER_KEY_ENV.get(self.provider, "")
             if env_name:

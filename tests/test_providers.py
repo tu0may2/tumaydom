@@ -36,3 +36,24 @@ def test_vision_capability_flags():
 def test_explicit_model_and_base_url_win():
     provider = build_provider("openai", "k", model="my-model", base_url="http://localhost:8000/v1")
     assert provider.model == "my-model"
+
+
+@pytest.mark.parametrize("model,expected", [
+    ("gemma3:12b", True),
+    ("llava:13b", True),
+    ("qwen2.5vl:7b", True),
+    ("qwen2.5:7b", False),
+    ("llama3.1", False),
+])
+def test_ollama_vision_detected_by_model_tag(model, expected):
+    assert build_provider("ollama", "", model=model).supports_vision is expected
+
+
+def test_vision_override_wins_over_detection():
+    assert build_provider("ollama", "", model="llama3.1", vision="on").supports_vision
+    assert not build_provider("gemini", "k", vision="off").supports_vision
+
+
+def test_ollama_needs_no_key():
+    provider = build_provider("ollama", "")
+    assert provider.model == PRESETS["ollama"]["model"]

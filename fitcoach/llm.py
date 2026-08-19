@@ -25,6 +25,8 @@ class LLM:
             settings.api_key,
             settings.model,
             settings.base_url,
+            settings.vision,
+            settings.request_timeout,
         )
         self.model = self.provider.model
 

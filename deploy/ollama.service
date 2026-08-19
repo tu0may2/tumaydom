@@ -1,0 +1,9 @@
+# Systemd drop-in для Ollama: увеличенный контекст и доступ с другой машины.
+# sudo mkdir -p /etc/systemd/system/ollama.service.d
+# sudo cp deploy/ollama.service /etc/systemd/system/ollama.service.d/override.conf
+# sudo systemctl daemon-reload && sudo systemctl restart ollama
+[Service]
+Environment="OLLAMA_CONTEXT_LENGTH=16384"
+# Раскомментируй, если бот работает не на этой же машине.
+# Только в доверенной сети: авторизации у Ollama нет.
+# Environment="OLLAMA_HOST=0.0.0.0"

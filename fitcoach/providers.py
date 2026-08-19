@@ -33,11 +33,17 @@ PRESETS: dict[str, dict[str, str]] = {
     },
     "mistral": {"model": "mistral-large-latest", "base_url": "https://api.mistral.ai/v1"},
     "openai": {"model": "gpt-4o-mini", "base_url": "https://api.openai.com/v1"},
-    "ollama": {"model": "llama3.1", "base_url": "http://localhost:11434/v1"},
+    # Локальный запуск. gemma3 выбрана как модель по умолчанию: она и по-русски
+    # пишет прилично, и умеет читать картинки — то есть закрывает скриншоты.
+    "ollama": {"model": "gemma3:12b", "base_url": "http://localhost:11434/v1"},
 }
 
-# У кого из бесплатных провайдеров есть разбор картинок (скриншоты выкладок).
+# У кого из провайдеров есть разбор картинок (скриншоты выкладок).
 VISION_CAPABLE = {"anthropic", "gemini", "openai", "openrouter", "mistral"}
+
+# Локальные модели, умеющие vision: у Ollama это зависит от того, что скачано.
+LOCAL_VISION_MODELS = ("gemma3", "llava", "llama3.2-vision", "qwen2.5vl", "qwen2-vl",
+                       "minicpm-v", "moondream", "granite3.2-vision", "mistral-small3")
 
 
 class LLMProvider(ABC):
@@ -45,6 +51,7 @@ class LLMProvider(ABC):
 
     name: str
     model: str
+    vision: str = "auto"  # auto | on | off
 
     @abstractmethod
     def text(self, prompt: str, *, system: str, images: list[Image] | None = None,
@@ -59,6 +66,13 @@ class LLMProvider(ABC):
 
     @property
     def supports_vision(self) -> bool:
+        if self.vision == "on":
+            return True
+        if self.vision == "off":
+            return False
+        if self.name == "ollama":
+            model = self.model.lower()
+            return any(tag in model for tag in LOCAL_VISION_MODELS)
         return self.name in VISION_CAPABLE
 
 
@@ -67,10 +81,11 @@ class AnthropicProvider(LLMProvider):
 
     name = "anthropic"
 
-    def __init__(self, api_key: str | None, model: str) -> None:
+    def __init__(self, api_key: str | None, model: str, vision: str = "auto") -> None:
         import anthropic
 
         self.model = model
+        self.vision = vision
         self._client = anthropic.Anthropic(api_key=api_key or None)
 
     def _content(self, prompt: str, images: list[Image] | None) -> list[dict[str, Any]]:
@@ -121,13 +136,21 @@ class OpenAICompatProvider(LLMProvider):
     `json_schema` → `json_object` → выдёргивание JSON из текста.
     """
 
-    def __init__(self, name: str, api_key: str | None, model: str, base_url: str) -> None:
+    def __init__(self, name: str, api_key: str | None, model: str, base_url: str,
+                 vision: str = "auto", timeout: float = 600.0) -> None:
         from openai import OpenAI
 
         self.name = name
         self.model = model
+        self.vision = vision
         # Ollama ключ не проверяет, но клиент требует непустую строку.
-        self._client = OpenAI(api_key=api_key or "not-needed", base_url=base_url or None)
+        # Локальная модель на CPU думает минутами, поэтому таймаут щедрый.
+        self._client = OpenAI(
+            api_key=api_key or "not-needed",
+            base_url=base_url or None,
+            timeout=timeout,
+            max_retries=2,
+        )
 
     def _messages(self, prompt: str, system: str,
                   images: list[Image] | None) -> list[dict[str, Any]]:
@@ -208,7 +231,8 @@ def extract_json(raw: str) -> dict[str, Any]:
     raise ValueError(f"В ответе модели нет корректного JSON: {raw[:200]}")
 
 
-def build_provider(name: str, api_key: str, model: str = "", base_url: str = "") -> LLMProvider:
+def build_provider(name: str, api_key: str, model: str = "", base_url: str = "",
+                   vision: str = "auto", timeout: float = 600.0) -> LLMProvider:
     name = (name or "anthropic").lower()
     preset = PRESETS.get(name)
     if preset is None:
@@ -221,5 +245,5 @@ def build_provider(name: str, api_key: str, model: str = "", base_url: str = "")
     base_url = base_url or preset["base_url"]
 
     if name == "anthropic":
-        return AnthropicProvider(api_key, model)
-    return OpenAICompatProvider(name, api_key, model, base_url)
+        return AnthropicProvider(api_key, model, vision)
+    return OpenAICompatProvider(name, api_key, model, base_url, vision, timeout)
