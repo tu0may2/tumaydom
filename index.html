@@ -1,0 +1,2516 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Виртуальный кот: ухаживай, играй, одевай и наблюдай, как он растёт.">
+<meta name="theme-color" content="#EADDCB">
+<title>Мурлыка — виртуальный кот</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=&apos;http://www.w3.org/2000/svg&apos; viewBox=&apos;0 0 64 64&apos;%3E%3Cpath d=&apos;M12 20 10 6l14 8a28 28 0 0 1 16 0l14-8-2 14a26 22 0 1 1-40 0z&apos; fill=&apos;%23C9743A&apos;/%3E%3Ccircle cx=&apos;24&apos; cy=&apos;34&apos; r=&apos;4&apos; fill=&apos;%233B2E24&apos;/%3E%3Ccircle cx=&apos;40&apos; cy=&apos;34&apos; r=&apos;4&apos; fill=&apos;%233B2E24&apos;/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Karla:wght@400;500;700&display=swap">
+<style>
+/* Базовый сброс: файл открывается сам по себе, без внешней обёртки. */
+*, *::before, *::after { box-sizing: border-box; }
+html { color-scheme: light; }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; font: 14px/1.5 system-ui, sans-serif; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+<style>
+
+/* Макет: одноэкранное приложение — шапка, сцена с котом во всю высоту, метрики, док действий. */
+:root {
+  --wall: #EADDCB;
+  --wall-2: #DCCBB3;
+  --floor: #B8906A;
+  --panel: #FBF4E9;
+  --panel-2: #F2E7D6;
+  --ink: #3B2E24;
+  --ink-soft: #7A6554;
+  --line: #D8C6AE;
+  --accent: #C9743A;
+  --accent-soft: #F0C9A6;
+  --good: #6E9B5B;
+  --warn: #D9A441;
+  --bad: #C25A4D;
+  --sky: #CFE3EC;
+  --shadow: rgba(59, 46, 36, .18);
+  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --font-ui: "Karla", "Avenir Next", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --wall: #2A2430;
+    --wall-2: #201B26;
+    --floor: #4A3A33;
+    --panel: #2F2836;
+    --panel-2: #262030;
+    --ink: #F0E6DA;
+    --ink-soft: #AD9F94;
+    --line: #453B50;
+    --accent: #E3A264;
+    --accent-soft: #6B4A2E;
+    --good: #8CBE76;
+    --warn: #E7BC63;
+    --bad: #E0796A;
+    --sky: #2B3A4A;
+    --shadow: rgba(0, 0, 0, .45);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --wall: #2A2430;
+  --wall-2: #201B26;
+  --floor: #4A3A33;
+  --panel: #2F2836;
+  --panel-2: #262030;
+  --ink: #F0E6DA;
+  --ink-soft: #AD9F94;
+  --line: #453B50;
+  --accent: #E3A264;
+  --accent-soft: #6B4A2E;
+  --good: #8CBE76;
+  --warn: #E7BC63;
+  --bad: #E0796A;
+  --sky: #2B3A4A;
+  --shadow: rgba(0, 0, 0, .45);
+  color-scheme: dark;
+}
+
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--wall-2);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+* { box-sizing: border-box; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+#app {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 10px 12px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+/* --- шапка --- */
+.topbar { display: flex; align-items: center; gap: 10px; }
+.pet-name {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 5.5vw, 28px);
+  font-weight: 700;
+  line-height: 1.1;
+  margin: 0;
+  letter-spacing: -.01em;
+}
+.pet-age { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+.topbar .spacer { flex: 1; }
+.coins {
+  display: flex; align-items: center; gap: 7px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 999px; padding: 6px 14px 6px 9px;
+  font-weight: 700; font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 0 var(--shadow);
+}
+.coin-dot {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #FFE49B, #E0A33C 62%, #A8711F);
+  box-shadow: inset 0 -1px 2px rgba(0,0,0,.25);
+}
+.icon-btn {
+  width: 38px; height: 38px; display: grid; place-items: center;
+  border-radius: 12px; border: 1px solid var(--line);
+  background: var(--panel); box-shadow: 0 1px 0 var(--shadow);
+}
+.icon-btn:active { transform: translateY(1px); }
+.icon-btn svg { width: 19px; height: 19px; }
+
+/* --- сцена --- */
+.scene {
+  position: relative; margin-top: 10px;
+  border-radius: 22px; overflow: hidden;
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 30px -12px var(--shadow);
+  min-height: 0;
+  touch-action: none;
+}
+#cat-canvas { display: block; width: 100%; height: 100%; }
+.bubble {
+  position: absolute; left: 50%; top: 12px; transform: translateX(-50%) translateY(-6px);
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 14px; padding: 7px 14px; font-size: 14px; font-weight: 500;
+  box-shadow: 0 4px 14px -6px var(--shadow);
+  opacity: 0; transition: opacity .25s ease, transform .25s ease;
+  pointer-events: none; max-width: 80%; text-align: center;
+}
+.bubble.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.coin-pop {
+  position: absolute; font-weight: 700; color: var(--accent);
+  pointer-events: none; font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 0 var(--panel);
+}
+
+/* --- метрики --- */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+.stat {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 13px;
+  padding: 6px 8px 7px; min-width: 0;
+}
+.stat-top { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.stat-name { font-size: 9.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-soft);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-val { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.meter { height: 6px; border-radius: 99px; background: var(--panel-2); margin-top: 6px; overflow: hidden; }
+.meter > i { display: block; height: 100%; border-radius: 99px; transition: width .4s ease, background .4s ease; }
+.stat.low { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { border-color: var(--bad); } }
+
+/* --- док действий --- */
+.dock { display: grid; grid-template-columns: repeat(6, 1fr); gap: 7px; margin-top: 10px; }
+.act {
+  border: 1px solid var(--line); background: var(--panel); min-width: 0;
+  border-radius: 15px; padding: 9px 2px 7px;
+  display: grid; justify-items: center; gap: 5px;
+  box-shadow: 0 2px 0 var(--shadow);
+  transition: transform .12s ease, background .2s ease;
+}
+.act:active { transform: translateY(2px); box-shadow: none; }
+.act[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.act svg { width: 23px; height: 23px; }
+.act span { font-size: 10px; font-weight: 600; white-space: nowrap; }
+.act.dim { opacity: .45; }
+
+/* --- модалки --- */
+.sheet {
+  position: fixed; inset: 0; z-index: 40;
+  background: rgba(20, 14, 10, .55);
+  display: grid; align-items: end; justify-items: center;
+  padding: 0;
+}
+.sheet-inner {
+  width: 100%; max-width: 760px; max-height: 88vh; overflow-y: auto;
+  background: var(--panel); border-radius: 22px 22px 0 0;
+  border: 1px solid var(--line); border-bottom: none;
+  padding-left: max(18px, env(safe-area-inset-left, 0px));
+  padding-right: max(18px, env(safe-area-inset-right, 0px));
+  padding-block: 16px calc(20px + env(safe-area-inset-bottom, 0px));
+  animation: rise .28s cubic-bezier(.2,.9,.3,1);
+}
+@keyframes rise { from { transform: translateY(26px); opacity: .4; } }
+@media (prefers-reduced-motion: reduce) { .sheet-inner { animation: none; } }
+.sheet-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.sheet-title { font-family: var(--font-display); font-size: 21px; font-weight: 700; margin: 0; flex: 1; }
+.close-btn {
+  border: 1px solid var(--line); background: var(--panel-2); border-radius: 10px;
+  width: 34px; height: 34px; display: grid; place-items: center; font-size: 17px; line-height: 1;
+}
+.tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.tab {
+  border: 1px solid var(--line); background: var(--panel-2); border-radius: 999px;
+  padding: 6px 14px; font-size: 13px; font-weight: 600;
+}
+.tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #FFF8EE; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 9px; }
+.card {
+  border: 1px solid var(--line); background: var(--panel-2); border-radius: 14px;
+  padding: 10px; display: grid; gap: 6px; text-align: left; min-width: 0;
+}
+.card h4 { margin: 0; font-size: 13.5px; font-weight: 700; }
+.card p { margin: 0; font-size: 11.5px; color: var(--ink-soft); line-height: 1.35; }
+.card .price { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 5px; }
+.card.owned { border-color: var(--good); }
+.card.worn { border-color: var(--accent); background: var(--accent-soft); }
+
+@media (max-width: 430px) {
+  .dock { grid-template-columns: repeat(3, 1fr); }
+  .act span { font-size: 11px; }
+}
+.card:disabled { opacity: .5; cursor: not-allowed; }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.sw {
+  width: 46px; height: 46px; border-radius: 13px; border: 2px solid var(--line);
+  padding: 0; overflow: hidden;
+}
+.sw[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.sw canvas { display: block; width: 100%; height: 100%; }
+label.field { display: grid; gap: 6px; font-size: 12px; color: var(--ink-soft); font-weight: 600; }
+.field input {
+  font: inherit; font-size: 16px; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--ink);
+}
+.section-label {
+  font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-soft); font-weight: 700; margin: 16px 0 8px;
+}
+.section-label:first-child { margin-top: 0; }
+.primary {
+  width: 100%; border: none; border-radius: 14px; background: var(--accent);
+  color: #FFF8EE; font-weight: 700; font-size: 15px; padding: 13px; margin-top: 16px;
+  box-shadow: 0 2px 0 rgba(0,0,0,.18);
+}
+.primary:disabled { opacity: .5; }
+.hint { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 10px 0 0; }
+
+/* --- онбординг --- */
+.intro { place-items: center; }
+.intro .sheet-inner { border-radius: 22px; max-width: 460px; border-bottom: 1px solid var(--line); margin: 16px; }
+.intro-art { height: 168px; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); margin-bottom: 14px; }
+.intro-art canvas { display: block; width: 100%; height: 100%; }
+
+/* --- мини-игры --- */
+.game-wrap { position: relative; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); touch-action: none; }
+.game-wrap canvas { display: block; width: 100%; height: 100%; }
+.game-hud {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; margin-bottom: 9px;
+}
+.memory-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.mcard {
+  aspect-ratio: 3 / 4; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--accent-soft); display: grid; place-items: center; padding: 0;
+  perspective: 600px;
+}
+.mcard svg { width: 60%; height: 60%; opacity: 0; transition: opacity .18s ease; }
+.mcard.up svg, .mcard.done svg { opacity: 1; }
+.mcard.up, .mcard.done { background: var(--panel-2); }
+.mcard.done { border-color: var(--good); }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header class="topbar">
+    <div>
+      <h1 class="pet-name" id="petName">Мурлыка</h1>
+      <div class="pet-age" id="petAge">котёнок, 1-й день</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="coins"><span class="coin-dot"></span><span id="coinCount">0</span></div>
+    <button class="icon-btn" id="soundBtn" title="Звук" aria-label="Звук">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 9v6h4l5 4V5L8 9H4z"/><path id="soundWave" d="M16.5 8.5a5 5 0 0 1 0 7"/>
+      </svg>
+    </button>
+  </header>
+
+  <div class="scene" id="scene">
+    <canvas id="cat-canvas"></canvas>
+    <div class="bubble" id="bubble"></div>
+  </div>
+
+  <section class="stats" id="stats" aria-label="Состояние кота"></section>
+
+  <nav class="dock" aria-label="Действия">
+    <button class="act" data-act="feed">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 13h18c0 4-4 7-9 7s-9-3-9-7z"/><path d="M7 13c0-2.5 2.2-4.5 5-4.5s5 2 5 4.5"/><path d="M12 8.5V6"/>
+      </svg><span>Кормить</span>
+    </button>
+    <button class="act" data-act="wash">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="9" cy="8" r="3"/><circle cx="16" cy="6" r="2"/><circle cx="15" cy="12" r="2.4"/><path d="M4 18c3 2 13 2 16 0"/>
+      </svg><span>Мыть</span>
+    </button>
+    <button class="act" data-act="sleep">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 14.5A8 8 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5z"/>
+      </svg><span>Спать</span>
+    </button>
+    <button class="act" data-act="play">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="8"/><path d="M5 8c4 1.5 10 5 13 9M8 5c1.5 4 5 10 9 13M4.5 14c4-1 9-5 11-9"/>
+      </svg><span>Играть</span>
+    </button>
+    <button class="act" data-act="shop">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 8h16l-1.4 11.2a1.5 1.5 0 0 1-1.5 1.3H6.9a1.5 1.5 0 0 1-1.5-1.3L4 8z"/><path d="M8.5 8V6a3.5 3.5 0 0 1 7 0v2"/>
+      </svg><span>Магазин</span>
+    </button>
+    <button class="act" data-act="look">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3.5 5 6.5v5c0 4.2 2.9 7.6 7 9 4.1-1.4 7-4.8 7-9v-5l-7-3z"/><circle cx="12" cy="11" r="2.5"/>
+      </svg><span>Внешность</span>
+    </button>
+  </nav>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-inner" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet-head">
+      <h2 class="sheet-title" id="sheetTitle">Магазин</h2>
+      <div class="coins"><span class="coin-dot"></span><span id="coinCount2">0</span></div>
+      <button class="close-btn" id="sheetClose" aria-label="Закрыть">✕</button>
+    </div>
+    <div id="sheetBody"></div>
+  </div>
+</div>
+
+<div class="sheet intro" id="intro" hidden>
+  <div class="sheet-inner" role="dialog" aria-modal="true" aria-labelledby="introTitle">
+    <div class="intro-art"><canvas id="introCanvas"></canvas></div>
+    <h2 class="sheet-title" id="introTitle">Кто у нас тут?</h2>
+    <p class="hint" style="margin-top:4px">Выбери, каким вырастет котёнок. Потом всё можно поменять — кроме характера, он сложится сам.</p>
+    <div class="section-label">Шерсть</div>
+    <div class="swatches" id="introCoats"></div>
+    <div class="section-label">Глаза</div>
+    <div class="swatches" id="introEyes"></div>
+    <div class="section-label">Имя</div>
+    <label class="field" for="introName">
+      <input id="introName" type="text" maxlength="18" placeholder="Мурлыка" autocomplete="off">
+    </label>
+    <button class="primary" id="introGo">Забрать домой</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   Мурлыка — виртуальный кот. Один файл, без внешних зависимостей
+   кроме шрифтов. Сохранение — localStorage этого браузера.
+   ============================================================ */
+
+/* ---------- справочники ---------- */
+
+// Расцветки. base — основная шерсть, belly — живот/грудь, mark — рисунок,
+// pattern: solid | tabby | tuxedo | point | calico | bicolor
+const COATS = [
+  { id: "ginger",  name: "Рыжий",      base: "#C9772F", belly: "#EFCDA2", mark: "#A4551B", pattern: "tabby"  },
+  { id: "grey",    name: "Серый",      base: "#8C8782", belly: "#D6D0C8", mark: "#5E5A57", pattern: "tabby"  },
+  { id: "black",   name: "Чёрный",     base: "#3A3336", belly: "#4B4348", mark: "#241F22", pattern: "solid"  },
+  { id: "white",   name: "Белый",      base: "#F2EBE1", belly: "#FFFBF4", mark: "#DFD4C5", pattern: "solid"  },
+  { id: "cream",   name: "Кремовый",   base: "#E4C9A4", belly: "#F7E7CF", mark: "#C9A878", pattern: "solid"  },
+  { id: "siamese", name: "Сиамский",   base: "#E8DAC2", belly: "#F6ECD9", mark: "#4A3932", pattern: "point"  },
+  { id: "tuxedo",  name: "Смокинг",    base: "#35302F", belly: "#F6F1E8", mark: "#211D1D", pattern: "tuxedo" },
+  { id: "calico",  name: "Трёхцветная",base: "#F0E7DA", belly: "#FFFAF1", mark: "#C06A2A", pattern: "calico" },
+  { id: "blue",    name: "Голубой",    base: "#8795A0", belly: "#C3CCD3", mark: "#67737D", pattern: "solid"  },
+  { id: "choco",   name: "Шоколадный", base: "#6E4A38", belly: "#A77B5E", mark: "#4C3123", pattern: "tabby"  },
+];
+
+// Цвета глаз: inner — у зрачка, outer — к краю радужки.
+const EYES = [
+  { id: "green",  name: "Зелёные",   inner: "#B8D96A", outer: "#4E7A2E" },
+  { id: "amber",  name: "Янтарные",  inner: "#F6C45A", outer: "#B06D15" },
+  { id: "blue",   name: "Голубые",   inner: "#BFE4F2", outer: "#3C7FA8" },
+  { id: "copper", name: "Медные",    inner: "#E29A55", outer: "#8B441A" },
+  { id: "hazel",  name: "Ореховые",  inner: "#D8C070", outer: "#6B5324" },
+  { id: "odd",    name: "Разные",    inner: "#BFE4F2", outer: "#3C7FA8", odd: { inner: "#F6C45A", outer: "#B06D15" } },
+];
+
+// Еда. hunger/happy — сколько восстанавливает, price 0 — всегда доступна.
+const FOODS = [
+  { id: "kibble",  name: "Сухой корм", price: 0,  hunger: 22, happy: 2,  energy: 4,  desc: "Всегда есть в миске." },
+  { id: "milk",    name: "Молоко",     price: 6,  hunger: 12, happy: 10, energy: 2,  desc: "Любимое, но не каждый день." },
+  { id: "fish",    name: "Сардина",    price: 14, hunger: 38, happy: 14, energy: 6,  desc: "Пахнет на всю комнату." },
+  { id: "chicken", name: "Курица",     price: 20, hunger: 48, happy: 10, energy: 10, desc: "Сытно и надолго." },
+  { id: "tuna",    name: "Тунец",      price: 28, hunger: 55, happy: 20, energy: 8,  desc: "Праздник живота." },
+  { id: "treat",   name: "Лакомство",  price: 9,  hunger: 8,  happy: 24, energy: 3,  desc: "Радости много, сытости мало." },
+];
+
+// Аксессуары — рисуются поверх кота.
+const WEARABLES = [
+  { id: "collar", name: "Ошейник",   price: 40,  slot: "neck", desc: "Красный, с бубенцом." },
+  { id: "bow",    name: "Бантик",    price: 55,  slot: "head", desc: "На левом ухе." },
+  { id: "hat",    name: "Шапочка",   price: 90,  slot: "head", desc: "Вязаная, с помпоном." },
+  { id: "glasses",name: "Очки",      price: 120, slot: "face", desc: "Круглые, учёные." },
+  { id: "scarf",  name: "Шарф",      price: 75,  slot: "neck", desc: "Полосатый, тёплый." },
+  { id: "crown",  name: "Корона",    price: 260, slot: "head", desc: "Потому что заслужил." },
+];
+
+// Фоны комнаты.
+const ROOMS = [
+  { id: "living", name: "Гостиная", price: 0,   desc: "Тёплый свет и деревянный пол." },
+  { id: "window", name: "У окна",   price: 60,  desc: "Солнечное пятно на полу." },
+  { id: "garden", name: "Сад",      price: 140, desc: "Трава, кусты и бабочки." },
+  { id: "night",  name: "Ночь",     price: 180, desc: "Луна и гирлянда." },
+];
+
+/* ---------- состояние ---------- */
+
+const SAVE_KEY = "murlyka.save.v1";
+const MAX = 100;
+
+// Скорость падения показателей в единицах за час.
+const DECAY = { hunger: 7, energy: 5.2, clean: 3.6, happy: 5 };
+const SLEEP_ENERGY_GAIN = 22;   // в час, пока кот спит
+const SLEEP_HUNGER_MULT = 0.45; // во сне голод растёт медленнее
+
+const defaultState = () => ({
+  version: 1,
+  name: "Мурлыка",
+  coat: "ginger",
+  eyes: "green",
+  born: Date.now(),
+  seen: Date.now(),
+  coins: 30,
+  stats: { hunger: 80, energy: 75, clean: 85, happy: 80 },
+  sleeping: false,
+  owned: ["living"],
+  worn: { head: null, neck: null, face: null },
+  room: "living",
+  sound: true,
+  records: { mice: 0, yarn: 0, memory: 0 },
+  meals: 0, washes: 0, games: 0, pets: 0,
+});
+
+let S = defaultState();
+let isNew = true;
+
+function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+function coat() { return COATS.find(c => c.id === S.coat) || COATS[0]; }
+function eyeSet() { return EYES.find(e => e.id === S.eyes) || EYES[0]; }
+function room() { return ROOMS.find(r => r.id === S.room) || ROOMS[0]; }
+
+/* ---------- сохранение ---------- */
+
+let saveTimer = null;
+function save(now) {
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  const write = () => {
+    S.seen = Date.now();
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { /* приватный режим — играем без сохранения */ }
+  };
+  if (now) write(); else saveTimer = setTimeout(write, 900);
+}
+
+function load() {
+  let raw = null;
+  try { raw = localStorage.getItem(SAVE_KEY); } catch (e) { raw = null; }
+  if (!raw) return false;
+  try {
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== "object" || !data.stats) return false;
+    S = Object.assign(defaultState(), data);
+    S.stats = Object.assign(defaultState().stats, data.stats);
+    S.worn = Object.assign({ head: null, neck: null, face: null }, data.worn || {});
+    S.records = Object.assign({ mice: 0, yarn: 0, memory: 0 }, data.records || {});
+    if (!Array.isArray(S.owned) || !S.owned.length) S.owned = ["living"];
+    return true;
+  } catch (e) { return false; }
+}
+
+// Показатели падают и пока игра закрыта — считаем по прошедшему времени.
+function applyElapsed() {
+  const hours = clamp((Date.now() - (S.seen || Date.now())) / 3600000, 0, 72);
+  if (hours <= 0) return;
+  const st = S.stats;
+  if (S.sleeping) {
+    st.energy = clamp(st.energy + SLEEP_ENERGY_GAIN * hours, 0, MAX);
+    st.hunger = clamp(st.hunger - DECAY.hunger * SLEEP_HUNGER_MULT * hours, 0, MAX);
+    st.clean  = clamp(st.clean  - DECAY.clean * 0.3 * hours, 0, MAX);
+    if (st.energy >= MAX) S.sleeping = false;
+  } else {
+    st.hunger = clamp(st.hunger - DECAY.hunger * hours, 0, MAX);
+    st.energy = clamp(st.energy - DECAY.energy * hours, 0, MAX);
+    st.clean  = clamp(st.clean  - DECAY.clean * hours, 0, MAX);
+  }
+  // Счастье тянет вниз всё остальное: голодному и грязному коту плохо.
+  const misery = (st.hunger < 25 ? 1 : 0) + (st.clean < 25 ? 1 : 0) + (st.energy < 20 ? 1 : 0);
+  st.happy = clamp(st.happy - DECAY.happy * hours * (1 + misery * 0.6), 0, MAX);
+  S.seen = Date.now();
+}
+
+/* ---------- настроение ---------- */
+
+// Производное состояние: от него зависят поза, глаза, хвост и реплики.
+function mood() {
+  const st = S.stats;
+  if (S.sleeping) return "sleep";
+  if (st.hunger < 22) return "hungry";
+  if (st.clean < 22) return "dirty";
+  if (st.energy < 18) return "sleepy";
+  if (st.happy < 28) return "sad";
+  if (st.happy > 78 && st.hunger > 55) return "happy";
+  return "calm";
+}
+
+/* ---------- звук ---------- */
+
+const Sound = (() => {
+  let ac = null, master = null;
+  function ctx() {
+    if (!S.sound) return null;
+    if (!ac) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      ac = new AC();
+      master = ac.createGain();
+      master.gain.value = 0.22;
+      master.connect(ac.destination);
+    }
+    if (ac.state === "suspended") ac.resume();
+    return ac;
+  }
+  function tone(freq, dur, type, vol, slideTo) {
+    const c = ctx(); if (!c) return;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type || "sine";
+    o.frequency.setValueAtTime(freq, c.currentTime);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, c.currentTime + dur);
+    g.gain.setValueAtTime(0.0001, c.currentTime);
+    g.gain.exponentialRampToValueAtTime(vol || 0.3, c.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur);
+    o.connect(g); g.connect(master);
+    o.start(); o.stop(c.currentTime + dur + 0.05);
+  }
+  function noise(dur, filterFreq, vol) {
+    const c = ctx(); if (!c) return;
+    const len = Math.floor(c.sampleRate * dur);
+    const buf = c.createBuffer(1, len, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = c.createBufferSource(); src.buffer = buf;
+    const f = c.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = filterFreq || 900;
+    const g = c.createGain(); g.gain.value = vol || 0.3;
+    src.connect(f); f.connect(g); g.connect(master);
+    src.start();
+  }
+  let purrNode = null;
+  return {
+    meow(pitch) {
+      const base = 480 * (pitch || 1);
+      tone(base, 0.34, "sawtooth", 0.16, base * 1.25);
+      setTimeout(() => tone(base * 1.15, 0.22, "sine", 0.1, base * 0.8), 120);
+    },
+    chirp() { tone(900, 0.09, "sine", 0.14, 1400); },
+    purr(on) {
+      const c = ctx();
+      if (!c) return;
+      if (on && !purrNode) {
+        const o = c.createOscillator(), g = c.createGain(), lfo = c.createOscillator(), lg = c.createGain();
+        o.type = "triangle"; o.frequency.value = 55;
+        lfo.type = "sine"; lfo.frequency.value = 24; lg.gain.value = 0.09;
+        g.gain.value = 0.06;
+        lfo.connect(lg); lg.connect(g.gain);
+        o.connect(g); g.connect(master);
+        o.start(); lfo.start();
+        purrNode = { o, lfo, g };
+      } else if (!on && purrNode) {
+        try { purrNode.o.stop(); purrNode.lfo.stop(); } catch (e) {}
+        purrNode = null;
+      }
+    },
+    crunch() { noise(0.12, 1600, 0.25); },
+    splash() { noise(0.4, 2600, 0.22); },
+    coin() { tone(880, 0.08, "square", 0.1); setTimeout(() => tone(1320, 0.12, "square", 0.09), 70); },
+    pop() { tone(320, 0.07, "sine", 0.12, 620); },
+    sad() { tone(380, 0.5, "sine", 0.12, 180); },
+  };
+})();
+</script>
+
+<script>
+"use strict";
+/* ============================================================
+   Отрисовка кота. Всё рисуется процедурно в виртуальном
+   пространстве 1000×1000: силуэт из сплайнов, поверх — тысячи
+   коротких штрихов шерсти. Тяжёлые слои (тело, голова, хвост)
+   кэшируются в offscreen-канвы и переиспользуются каждый кадр.
+   ============================================================ */
+
+/* ---------- мелкая геометрия ---------- */
+
+function rngFrom(seedStr) {
+  let h = 2166136261;
+  for (let i = 0; i < seedStr.length; i++) { h ^= seedStr.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return function () {
+    h += 0x6D2B79F5; let t = h;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Замкнутый сплайн Катмулла–Рома: даёт плавный силуэт и массив точек,
+// по которому потом ставится краевая шерсть.
+function spline(cp, steps) {
+  steps = steps || 14;
+  const out = [], n = cp.length;
+  for (let i = 0; i < n; i++) {
+    const p0 = cp[(i - 1 + n) % n], p1 = cp[i], p2 = cp[(i + 1) % n], p3 = cp[(i + 2) % n];
+    for (let s = 0; s < steps; s++) {
+      const t = s / steps, t2 = t * t, t3 = t2 * t;
+      out.push([
+        0.5 * ((2 * p1[0]) + (-p0[0] + p2[0]) * t + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3),
+        0.5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * t + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3),
+      ]);
+    }
+  }
+  return out;
+}
+
+function pathOf(pts) {
+  const p = new Path2D();
+  p.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) p.lineTo(pts[i][0], pts[i][1]);
+  p.closePath();
+  return p;
+}
+
+function bbox(pts) {
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for (const p of pts) { if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; }
+  return { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 };
+}
+
+// Принимает и "#rrggbb", и уже посчитанный "rgb(r,g,b)" — шерсть осветляется
+// в несколько проходов, поэтому цвет приходит в обоих видах.
+function rgbOf(col) {
+  if (col[0] === "#") {
+    return [parseInt(col.slice(1, 3), 16), parseInt(col.slice(3, 5), 16), parseInt(col.slice(5, 7), 16)];
+  }
+  const m = col.match(/-?\d+(\.\d+)?/g) || [0, 0, 0];
+  return [Math.round(+m[0]), Math.round(+m[1]), Math.round(+m[2])];
+}
+
+function mix(a, b, t) {
+  const pa = rgbOf(a), pb = rgbOf(b);
+  const c = pa.map((v, i) => clamp(Math.round(v + (pb[i] - v) * t), 0, 255));
+  return "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")";
+}
+
+function shade(hex, amt) { return mix(hex, amt > 0 ? "#FFFFFF" : "#000000", Math.abs(amt)); }
+
+/* ---------- шерсть ---------- */
+
+// Штрихи внутри силуэта + «пух» наружу по контуру. Направление задаёт dir(x,y).
+function furPass(ctx, pts, opt) {
+  const p = pathOf(pts), b = bbox(pts);
+  const rnd = rngFrom(opt.seed || "fur");
+  const dense = Math.round((b.w * b.h) / (opt.spacing || 9));
+
+  ctx.save();
+  ctx.clip(p);
+
+  // подложка: объём за счёт вертикального градиента
+  const g = ctx.createLinearGradient(b.x0, b.y0, b.x0 + b.w * 0.45, b.y1);
+  g.addColorStop(0, shade(opt.base, 0.16));
+  g.addColorStop(0.45, opt.base);
+  g.addColorStop(1, shade(opt.base, -0.2));
+  ctx.fillStyle = g;
+  ctx.fillRect(b.x0 - 4, b.y0 - 4, b.w + 8, b.h + 8);
+
+  if (opt.belly) {
+    // светлое пятно снизу — живот, грудь, подбородок
+    const bg = ctx.createRadialGradient(opt.belly.x, opt.belly.y, 4, opt.belly.x, opt.belly.y, opt.belly.r);
+    bg.addColorStop(0, opt.belly.color);
+    bg.addColorStop(0.42, mix(opt.belly.color, opt.base, 0.25));
+    bg.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.save();
+    ctx.globalAlpha = 0.72;
+    ctx.fillStyle = bg;
+    ctx.fillRect(b.x0 - 4, b.y0 - 4, b.w + 8, b.h + 8);
+    ctx.restore();
+  }
+
+  if (opt.pattern) opt.pattern(ctx, b, rnd);
+
+  // штрихи шерсти
+  ctx.lineCap = "round";
+  for (let i = 0; i < dense; i++) {
+    const x = b.x0 + rnd() * b.w, y = b.y0 + rnd() * b.h;
+    if (!ctx.isPointInPath(p, x, y)) continue;
+    const a = opt.dir(x, y) + (rnd() - 0.5) * 0.3;
+    const len = (opt.len || 13) * (0.6 + rnd() * 0.8);
+    const light = (rnd() - 0.42) * 0.42;
+    ctx.strokeStyle = shade(opt.base, light);
+    ctx.globalAlpha = 0.12 + rnd() * 0.26;
+    ctx.lineWidth = 0.7 + rnd() * 1.1;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + Math.cos(a) * len * 0.6, y + Math.sin(a) * len * 0.6,
+                         x + Math.cos(a + 0.25) * len, y + Math.sin(a + 0.25) * len);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // светотень: блик сверху-слева и затемнение к краям — это и даёт объём
+  const cx0 = (b.x0 + b.x1) / 2, cy0 = (b.y0 + b.y1) / 2;
+  const vg = ctx.createRadialGradient(
+    cx0 - b.w * 0.2, b.y0 + b.h * 0.22, Math.min(b.w, b.h) * 0.08,
+    cx0, cy0, Math.max(b.w, b.h) * 0.74);
+  vg.addColorStop(0, "rgba(255,252,245,.2)");
+  vg.addColorStop(0.5, "rgba(255,255,255,0)");
+  vg.addColorStop(1, "rgba(28,16,8,.34)");
+  ctx.fillStyle = vg;
+  ctx.fillRect(b.x0 - 4, b.y0 - 4, b.w + 8, b.h + 8);
+  ctx.restore();
+
+  // пух по краю: именно он читается как «пушистый», поэтому не обрезаем
+  const step = opt.edgeStep || 1;
+  ctx.save();
+  ctx.lineCap = "round";
+  const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+  for (let i = 0; i < pts.length; i += step) {
+    const a0 = pts[i], a1 = pts[(i + 2) % pts.length];
+    let nx = a1[1] - a0[1], ny = -(a1[0] - a0[0]);
+    const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
+    if ((a0[0] - cx) * nx + (a0[1] - cy) * ny < 0) { nx = -nx; ny = -ny; }
+    const len = (opt.edgeLen || 7) * (0.35 + rnd() * 0.85);
+    const jx = (rnd() - 0.5) * 1.6, jy = (rnd() - 0.5) * 1.6;
+    ctx.strokeStyle = shade(opt.base, (rnd() - 0.25) * 0.34);
+    ctx.globalAlpha = 0.3 + rnd() * 0.45;
+    ctx.lineWidth = 0.5 + rnd() * 0.9;
+    ctx.beginPath();
+    ctx.moveTo(a0[0] - nx * 4 + jx, a0[1] - ny * 4 + jy);
+    ctx.quadraticCurveTo(a0[0] + nx * len * 0.5, a0[1] + ny * len * 0.5,
+                         a0[0] + nx * len + jx, a0[1] + ny * len + jy);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+/* ---------- рисунок шерсти по типу окраса ---------- */
+
+function tabbyBody(markColor) {
+  return function (ctx, b, rnd) {
+    ctx.save();
+    ctx.strokeStyle = markColor;
+    ctx.lineCap = "round";
+    ctx.shadowColor = markColor;
+    ctx.shadowBlur = 9;
+    const cx = (b.x0 + b.x1) / 2;
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 9; i++) {
+        if (rnd() < 0.18) continue; // разрывы делают рисунок живым
+        const t = i / 8;
+        const y0 = b.y0 + b.h * (0.05 + t * 0.58);
+        const reach = 0.26 + rnd() * 0.12;
+        ctx.globalAlpha = 0.09 + rnd() * 0.09;
+        ctx.lineWidth = 5 + rnd() * 7;
+        ctx.beginPath();
+        ctx.moveTo(cx + side * (16 + rnd() * 20), y0);
+        ctx.quadraticCurveTo(
+          cx + side * b.w * (reach * 0.7), y0 + b.h * (0.07 + t * 0.03),
+          cx + side * b.w * reach * 1.45, y0 + b.h * (0.15 + t * 0.05));
+        ctx.stroke();
+      }
+    }
+    // тёмный хребет
+    ctx.globalAlpha = 0.09;
+    ctx.lineWidth = 18;
+    ctx.beginPath();
+    ctx.moveTo(cx, b.y0 + b.h * 0.04);
+    ctx.lineTo(cx, b.y0 + b.h * 0.55);
+    ctx.stroke();
+    ctx.restore();
+  };
+}
+
+function tabbyHead(markColor) {
+  return function (ctx, b, rnd) {
+    ctx.save();
+    ctx.strokeStyle = markColor;
+    ctx.lineCap = "round";
+    ctx.shadowColor = markColor;
+    ctx.shadowBlur = 7;
+    ctx.globalAlpha = 0.2;
+    const cx = (b.x0 + b.x1) / 2, top = b.y0 + b.h * 0.2;
+    ctx.lineWidth = 7;
+    for (const d of [-1, 1]) {
+      // «М» на лбу — фирменный знак табби
+      ctx.beginPath();
+      ctx.moveTo(cx + d * 8, top);
+      ctx.quadraticCurveTo(cx + d * 22, top + 22, cx + d * 32, top + 46);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx + d * 46, top + 4);
+      ctx.quadraticCurveTo(cx + d * 56, top + 26, cx + d * 60, top + 50);
+      ctx.stroke();
+      // полоски от глаз к щекам
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(cx + d * 80, top + 58);
+      ctx.quadraticCurveTo(cx + d * 112, top + 76, cx + d * 126, top + 112);
+      ctx.stroke();
+      ctx.lineWidth = 7;
+    }
+    ctx.restore();
+  };
+}
+
+function pointPattern(markColor, where) {
+  // сиамский: тёмные «точки» — морда, уши, лапы
+  return function (ctx, b, rnd) {
+    ctx.save();
+    const cx = (b.x0 + b.x1) / 2;
+    let g;
+    if (where === "head") {
+      g = ctx.createRadialGradient(cx, b.y0 + b.h * 0.78, 10, cx, b.y0 + b.h * 0.78, b.w * 0.62);
+    } else {
+      g = ctx.createRadialGradient(cx, b.y1, 10, cx, b.y1, b.h * 0.55);
+    }
+    g.addColorStop(0, markColor);
+    g.addColorStop(0.45, mix(markColor, "#FFFFFF", 0.45));
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = g;
+    ctx.fillRect(b.x0 - 4, b.y0 - 4, b.w + 8, b.h + 8);
+    ctx.restore();
+  };
+}
+
+function tuxedoPattern(white) {
+  return function (ctx, b, rnd) {
+    ctx.save();
+    const cx = (b.x0 + b.x1) / 2;
+    ctx.fillStyle = white;
+    ctx.beginPath();
+    ctx.moveTo(cx, b.y0 + b.h * 0.02);
+    ctx.quadraticCurveTo(cx - b.w * 0.2, b.y0 + b.h * 0.42, cx - b.w * 0.13, b.y1);
+    ctx.lineTo(cx + b.w * 0.13, b.y1);
+    ctx.quadraticCurveTo(cx + b.w * 0.2, b.y0 + b.h * 0.42, cx, b.y0 + b.h * 0.02);
+    ctx.fill();
+    ctx.restore();
+  };
+}
+
+function calicoPattern(a, bC) {
+  return function (ctx, b, rnd) {
+    ctx.save();
+    const blobs = 7;
+    for (let i = 0; i < blobs; i++) {
+      const x = b.x0 + rnd() * b.w, y = b.y0 + rnd() * b.h;
+      const r = (b.w * 0.14) * (0.6 + rnd() * 1.1);
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = i % 2 ? a : bC;
+      ctx.beginPath();
+      for (let s = 0; s <= 16; s++) {
+        const ang = (s / 16) * Math.PI * 2;
+        const rr = r * (0.72 + rnd() * 0.5);
+        const px = x + Math.cos(ang) * rr, py = y + Math.sin(ang) * rr * 0.8;
+        if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  };
+}
+
+function patternFor(part) {
+  const c = coat();
+  if (c.pattern === "tabby") return part === "head" ? tabbyHead(c.mark) : tabbyBody(c.mark);
+  if (c.pattern === "point") return pointPattern(c.mark, part);
+  if (c.pattern === "tuxedo") return part === "body" ? tuxedoPattern(c.belly) : null;
+  if (c.pattern === "calico") return calicoPattern(c.mark, "#3A3336");
+  return null;
+}
+</script>
+
+<script>
+"use strict";
+/* ============================================================
+   Геометрия кота и сборка кэш-слоёв.
+   Поза: сидит анфас, хвост обёрнут вперёд справа.
+   ============================================================ */
+
+const VW = 1000; // виртуальная ширина сцены
+
+// Силуэт тела: плечи → бока → бёдра → низ.
+const BODY_CP = [
+  [500, 428], [612, 468], [660, 600], [672, 752], [640, 858],
+  [560, 892], [500, 898], [440, 892], [360, 858], [328, 752],
+  [340, 600], [388, 468],
+];
+
+// Голова с пушистыми щеками.
+const HEAD_CP = [
+  [500, 176], [576, 188], [634, 226], [662, 292], [656, 362],
+  [622, 424], [560, 464], [500, 474], [440, 464], [378, 424],
+  [344, 362], [338, 292], [366, 226], [424, 188],
+];
+
+// Уши: внешний контур и внутренняя раковина.
+const EAR_L = [[372, 236], [330, 150], [312, 96], [370, 136], [430, 180], [412, 220]];
+const EAR_R = EAR_L.map(p => [VW - p[0], p[1]]);
+const EAR_IN_L = [[378, 222], [348, 158], [336, 124], [382, 158], [416, 190], [404, 212]];
+const EAR_IN_R = EAR_IN_L.map(p => [VW - p[0], p[1]]);
+
+// Передние лапы.
+const LEG_L = [[452, 700], [470, 790], [466, 872], [428, 890], [392, 876], [392, 790], [410, 700]];
+const LEG_R = LEG_L.map(p => [VW - p[0], p[1]]);
+
+// Хвост: осевая линия в локальных координатах, основание в (0,0).
+const TAIL_SPINE = [[0, 0], [56, 36], [90, 92], [68, 144], [-6, 172], [-116, 180], [-216, 158], [-272, 116]];
+const TAIL_BASE = [638, 736]; // выходит из-за правого бедра
+
+function outlineFromSpine(spine, w0, w1) {
+  const left = [], right = [];
+  for (let i = 0; i < spine.length; i++) {
+    const p = spine[i];
+    const a = spine[Math.max(0, i - 1)], b = spine[Math.min(spine.length - 1, i + 1)];
+    let nx = b[1] - a[1], ny = -(b[0] - a[0]);
+    const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l;
+    const t = i / (spine.length - 1);
+    const w = w0 + (w1 - w0) * t;
+    left.push([p[0] + nx * w, p[1] + ny * w]);
+    right.unshift([p[0] - nx * w, p[1] - ny * w]);
+  }
+  return left.concat(right);
+}
+
+/* ---------- слои ---------- */
+
+function makeLayer(x0, y0, w, h, px, drawFn) {
+  const cv = document.createElement("canvas");
+  cv.width = Math.ceil(w * px); cv.height = Math.ceil(h * px);
+  const c = cv.getContext("2d");
+  c.scale(px, px);
+  c.translate(-x0, -y0);
+  drawFn(c);
+  return { cv, x0, y0, w, h };
+}
+
+const Cat = {
+  layers: null,
+  px: 1,
+  key: "",
+
+  build(px) {
+    const c = coat();
+    const k = [S.coat, S.eyes, Math.round(px * 100)].join("|");
+    if (this.layers && this.key === k) return;
+    this.key = k; this.px = px;
+
+    const bodyPts = spline(BODY_CP, 12);
+    const headPts = spline(HEAD_CP, 12);
+    const tailPts = spline(outlineFromSpine(TAIL_SPINE, 38, 17), 6);
+    const legL = spline(LEG_L, 10), legR = spline(LEG_R, 10);
+    const earL = spline(EAR_L, 10), earR = spline(EAR_R, 10);
+    const earInL = spline(EAR_IN_L, 8), earInR = spline(EAR_IN_R, 8);
+
+    // --- тело с лапами ---
+    const body = makeLayer(300, 400, 420, 540, px, (ctx) => {
+      furPass(ctx, bodyPts, {
+        base: c.base, seed: "body" + c.id, len: 20, spacing: 70, edgeLen: 16,
+        belly: { x: 500, y: 790, r: 210, color: c.belly },
+        pattern: patternFor("body"),
+        dir: (x, y) => Math.PI / 2 + (x - 500) / 1100,
+      });
+      for (const [pts, side] of [[legL, -1], [legR, 1]]) {
+        furPass(ctx, pts, {
+          base: shade(c.base, 0.04), seed: "leg" + side + c.id, len: 14, spacing: 55, edgeLen: 11,
+          belly: { x: 500 + side * 70, y: 884, r: 70, color: c.belly },
+          pattern: c.pattern === "point" ? pointPattern(c.mark, "leg") : null,
+          dir: () => Math.PI / 2,
+        });
+      }
+      // тень от головы на грудь: без неё голова выглядит приклеенным шаром
+      ctx.save();
+      ctx.clip(pathOf(bodyPts));
+      const ao = ctx.createRadialGradient(500, 452, 20, 500, 452, 190);
+      ao.addColorStop(0, "rgba(30,18,10,.42)");
+      ao.addColorStop(0.5, "rgba(30,18,10,.16)");
+      ao.addColorStop(1, "rgba(30,18,10,0)");
+      ctx.fillStyle = ao;
+      ctx.beginPath(); ctx.ellipse(500, 470, 190, 120, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+
+      // пальцы на передних лапах
+      ctx.save();
+      ctx.strokeStyle = "rgba(0,0,0,.16)"; ctx.lineWidth = 2.4; ctx.lineCap = "round";
+      for (const side of [-1, 1]) {
+        for (let i = -1; i <= 1; i++) {
+          const x = 500 + side * 71 + i * 15;
+          ctx.beginPath(); ctx.moveTo(x, 868); ctx.lineTo(x, 884); ctx.stroke();
+        }
+      }
+      ctx.restore();
+    });
+
+    // --- голова с ушами ---
+    const head = makeLayer(280, 70, 440, 440, px, (ctx) => {
+      for (const [outer, inner, side] of [[earL, earInL, -1], [earR, earInR, 1]]) {
+        furPass(ctx, outer, {
+          base: c.pattern === "point" ? c.mark : shade(c.base, -0.06),
+          seed: "ear" + side + c.id, len: 12, spacing: 60, edgeLen: 15,
+          dir: () => -Math.PI / 2 + side * 0.3,
+        });
+        const ip = pathOf(inner);
+        const g = ctx.createLinearGradient(0, 100, 0, 240);
+        g.addColorStop(0, "#C98E8E"); g.addColorStop(1, "#E7B4AE");
+        ctx.save(); ctx.globalAlpha = 0.92; ctx.fillStyle = g; ctx.fill(ip); ctx.restore();
+        // пучки шерсти в раковине
+        ctx.save(); ctx.clip(ip);
+        const rnd = rngFrom("earin" + side);
+        ctx.strokeStyle = "rgba(255,255,255,.5)"; ctx.lineCap = "round";
+        for (let i = 0; i < 26; i++) {
+          const x = 330 + rnd() * 90, y = 120 + rnd() * 100;
+          ctx.lineWidth = 1 + rnd(); ctx.globalAlpha = 0.3 + rnd() * 0.4;
+          ctx.beginPath(); ctx.moveTo(x, y);
+          ctx.lineTo(x + side * (6 + rnd() * 8), y - 14 - rnd() * 10);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+      furPass(ctx, headPts, {
+        base: c.base, seed: "head" + c.id, len: 15, spacing: 48, edgeLen: 15,
+        belly: { x: 500, y: 410, r: 130, color: c.belly },
+        pattern: patternFor("head"),
+        dir: (x, y) => Math.atan2(y - 300, x - 500) + 0.2,
+      });
+    });
+
+    // --- хвост ---
+    const tb = bbox(tailPts);
+    const tail = makeLayer(tb.x0 - 24, tb.y0 - 24, tb.w + 48, tb.h + 48, px, (ctx) => {
+      furPass(ctx, tailPts, {
+        base: c.base, seed: "tail" + c.id, len: 16, spacing: 46, edgeLen: 17,
+        pattern: c.pattern === "tabby" ? (cx2, bb, rnd) => {
+          cx2.save();
+          cx2.strokeStyle = c.mark; cx2.lineCap = "round";
+          cx2.shadowColor = c.mark; cx2.shadowBlur = 6;
+          for (let i = 1; i < TAIL_SPINE.length; i++) {
+            const a = TAIL_SPINE[i - 1], p = TAIL_SPINE[i];
+            const ang = Math.atan2(p[1] - a[1], p[0] - a[0]) + Math.PI / 2;
+            const w = 30 - i * 2.5;
+            cx2.globalAlpha = 0.22;
+            cx2.lineWidth = 11;
+            cx2.beginPath();
+            cx2.moveTo(p[0] - Math.cos(ang) * w, p[1] - Math.sin(ang) * w);
+            cx2.lineTo(p[0] + Math.cos(ang) * w, p[1] + Math.sin(ang) * w);
+            cx2.stroke();
+          }
+          cx2.restore();
+        } : (c.pattern === "point" ? pointPattern(c.mark, "tail") : null),
+        dir: (x, y) => Math.atan2(y - 0, x - 0) + Math.PI / 2,
+      });
+    });
+
+    this.layers = { body, head, tail };
+  },
+};
+</script>
+
+<script>
+"use strict";
+/* ============================================================
+   Морда, аксессуары, комната и покадровая отрисовка.
+   ============================================================ */
+
+const EYE_L = [440, 316], EYE_R = [560, 316];
+const NOSE = [500, 372];
+
+function eyePath(ctx, cx, cy, rx, ry, squint, side) {
+  // Миндалевидный глаз: внешний угол чуть выше внутреннего.
+  const up = ry * (1 - squint * 0.78);
+  const dn = ry * (1 - squint * 0.45);
+  const tilt = side * 5;
+  ctx.beginPath();
+  ctx.moveTo(cx - rx, cy + 2);
+  ctx.bezierCurveTo(cx - rx * 0.55, cy - up * 1.5, cx + rx * 0.5, cy - up * 1.6, cx + rx, cy - 2 + tilt * 0.4);
+  ctx.bezierCurveTo(cx + rx * 0.55, cy + dn * 1.45, cx - rx * 0.5, cy + dn * 1.5, cx - rx, cy + 2);
+  ctx.closePath();
+}
+
+function drawEye(ctx, cx, cy, side, st, pal) {
+  const rx = 50, ry = 39;
+  const squint = clamp(st.squint + st.blink, 0, 1);
+  const lookX = st.lookX * 9, lookY = st.lookY * 6;
+
+  ctx.save();
+  eyePath(ctx, cx, cy, rx, ry, squint, side);
+  ctx.save();
+  ctx.clip();
+
+  // белок почти не виден — тёмная подложка даёт глубину
+  ctx.fillStyle = "#2A1F1C";
+  ctx.fillRect(cx - rx - 4, cy - ry - 4, rx * 2 + 8, ry * 2 + 8);
+
+  // радужка
+  const ir = 39;
+  const ix = cx + lookX, iy = cy + lookY;
+  const g = ctx.createRadialGradient(ix - 6, iy - 7, 3, ix, iy, ir);
+  g.addColorStop(0, pal.inner);
+  g.addColorStop(0.62, mix(pal.inner, pal.outer, 0.55));
+  g.addColorStop(1, pal.outer);
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(ix, iy, ir, 0, Math.PI * 2); ctx.fill();
+
+  // волокна радужки
+  ctx.save();
+  ctx.globalAlpha = 0.33; ctx.strokeStyle = mix(pal.inner, "#FFFFFF", 0.4); ctx.lineWidth = 1.2;
+  for (let i = 0; i < 26; i++) {
+    const a = (i / 26) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(ix + Math.cos(a) * ir * 0.34, iy + Math.sin(a) * ir * 0.34);
+    ctx.lineTo(ix + Math.cos(a) * ir * 0.93, iy + Math.sin(a) * ir * 0.93);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // вертикальный зрачок: сужается на свету, round-ится в темноте и от азарта
+  const pw = 6 + st.pupil * 26;
+  ctx.fillStyle = "#120C0C";
+  ctx.beginPath();
+  ctx.ellipse(ix, iy, pw / 2, ir * 0.86, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // блики
+  ctx.fillStyle = "rgba(255,255,255,.92)";
+  ctx.beginPath(); ctx.arc(ix - 14, iy - 16, 8.5, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath(); ctx.arc(ix + 10, iy + 11, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // тень от верхнего века
+  const sh = ctx.createLinearGradient(0, cy - ry, 0, cy + ry * 0.3);
+  sh.addColorStop(0, "rgba(0,0,0,.45)");
+  sh.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = sh;
+  ctx.fillRect(cx - rx, cy - ry, rx * 2, ry * 1.4);
+  ctx.restore();
+
+  // обводка века
+  ctx.lineWidth = 3.2;
+  ctx.strokeStyle = "rgba(26,16,14,.85)";
+  ctx.stroke();
+  ctx.restore();
+
+  // закрытое веко поверх — цветом шерсти
+  if (st.lid > 0.02) {
+    const c = coat();
+    ctx.save();
+    eyePath(ctx, cx, cy, rx, ry, 0, side);
+    ctx.clip();
+    ctx.fillStyle = shade(c.base, -0.05);
+    ctx.fillRect(cx - rx - 4, cy - ry - 6, rx * 2 + 8, (ry * 2 + 10) * st.lid);
+    ctx.strokeStyle = "rgba(26,16,14,.6)"; ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    ctx.moveTo(cx - rx, cy - ry - 6 + (ry * 2 + 10) * st.lid);
+    ctx.lineTo(cx + rx, cy - ry - 6 + (ry * 2 + 10) * st.lid);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawFace(ctx, st) {
+  const c = coat(), e = eyeSet();
+  const palL = { inner: e.inner, outer: e.outer };
+  const palR = e.odd ? { inner: e.odd.inner, outer: e.odd.outer } : palL;
+
+  drawEye(ctx, EYE_L[0], EYE_L[1], -1, st, palL);
+  drawEye(ctx, EYE_R[0], EYE_R[1], 1, st, palR);
+
+  // подушечки усов
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  const pg = ctx.createRadialGradient(500, 400, 6, 500, 400, 86);
+  pg.addColorStop(0, shade(c.belly, 0.1));
+  pg.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = pg;
+  ctx.beginPath(); ctx.ellipse(500, 400, 86, 46, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // объём морды: светлее к носу, тень под подбородком
+  ctx.save();
+  const mz = ctx.createRadialGradient(500, 384, 10, 500, 392, 120);
+  mz.addColorStop(0, "rgba(255,250,242,.3)");
+  mz.addColorStop(0.6, "rgba(255,250,242,.07)");
+  mz.addColorStop(1, "rgba(255,250,242,0)");
+  ctx.fillStyle = mz;
+  ctx.beginPath(); ctx.ellipse(500, 390, 110, 72, 0, 0, Math.PI * 2); ctx.fill();
+  const chin = ctx.createRadialGradient(500, 452, 6, 500, 452, 96);
+  chin.addColorStop(0, "rgba(40,24,14,.3)");
+  chin.addColorStop(1, "rgba(40,24,14,0)");
+  ctx.fillStyle = chin;
+  ctx.beginPath(); ctx.ellipse(500, 456, 96, 44, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // нос
+  ctx.save();
+  const ng = ctx.createLinearGradient(0, NOSE[1] - 14, 0, NOSE[1] + 14);
+  ng.addColorStop(0, "#E59E96"); ng.addColorStop(1, "#B9655F");
+  ctx.fillStyle = ng;
+  ctx.beginPath();
+  ctx.moveTo(NOSE[0] - 19, NOSE[1] - 10);
+  ctx.quadraticCurveTo(NOSE[0], NOSE[1] - 16, NOSE[0] + 19, NOSE[1] - 10);
+  ctx.quadraticCurveTo(NOSE[0] + 14, NOSE[1] + 12, NOSE[0], NOSE[1] + 16);
+  ctx.quadraticCurveTo(NOSE[0] - 14, NOSE[1] + 12, NOSE[0] - 19, NOSE[1] - 10);
+  ctx.fill();
+  ctx.fillStyle = "rgba(60,20,20,.5)";
+  ctx.beginPath(); ctx.ellipse(NOSE[0] - 8, NOSE[1] - 1, 3.4, 2.4, 0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(NOSE[0] + 8, NOSE[1] - 1, 3.4, 2.4, -0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,.45)";
+  ctx.beginPath(); ctx.ellipse(NOSE[0] - 5, NOSE[1] - 8, 5, 3, -0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // рот
+  ctx.save();
+  ctx.strokeStyle = "rgba(40,24,20,.72)";
+  ctx.lineWidth = 3.4; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(500, NOSE[1] + 15); ctx.lineTo(500, NOSE[1] + 27); ctx.stroke();
+  const smile = 10 + st.smile * 12;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(500, NOSE[1] + 27);
+    ctx.quadraticCurveTo(500 + side * 16, NOSE[1] + 27 + smile, 500 + side * 32, NOSE[1] + 20 - st.smile * 6);
+    ctx.stroke();
+  }
+  if (st.mouth > 0.03) {
+    ctx.fillStyle = "#8C4B4B";
+    ctx.beginPath();
+    ctx.ellipse(500, NOSE[1] + 34 + st.mouth * 6, 17 * st.mouth + 5, 13 * st.mouth + 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#E7A3A3";
+    ctx.beginPath();
+    ctx.ellipse(500, NOSE[1] + 38 + st.mouth * 8, 9 * st.mouth, 6 * st.mouth, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // точки от усов
+  ctx.save();
+  ctx.fillStyle = "rgba(60,40,32,.3)";
+  const rnd = rngFrom("dots");
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 6; i++) {
+      const x = 500 + side * (22 + (i % 3) * 17 + rnd() * 4);
+      const y = 386 + Math.floor(i / 3) * 15 + rnd() * 4;
+      ctx.beginPath(); ctx.arc(x, y, 1.9, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.restore();
+
+  // усы
+  ctx.save();
+  ctx.strokeStyle = "rgba(255,250,242,.85)";
+  ctx.lineCap = "round";
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 4; i++) {
+      const y0 = 384 + i * 11;
+      const droop = (i - 1.2) * 16 + st.whisker * 10;
+      ctx.lineWidth = 2.6 - i * 0.25;
+      ctx.globalAlpha = 0.75 - i * 0.08;
+      ctx.beginPath();
+      ctx.moveTo(500 + side * 36, y0);
+      ctx.quadraticCurveTo(500 + side * 120, y0 + droop * 0.4, 500 + side * 196, y0 + droop);
+      ctx.stroke();
+    }
+    // брови-вибриссы
+    ctx.globalAlpha = 0.55; ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(500 + side * (44 + i * 9), 268);
+      ctx.quadraticCurveTo(500 + side * 80, 240 - i * 10, 500 + side * 120, 224 - i * 14);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+</script>
+
+<script>
+"use strict";
+/* ============================================================
+   Аксессуары, комнаты и наложения (грязь, пена, сон, сердечки).
+   ============================================================ */
+
+const Wear = {
+  collar(ctx) {
+    ctx.save();
+    ctx.strokeStyle = "#C0392B"; ctx.lineWidth = 22; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.arc(500, 420, 112, 0.38, Math.PI - 0.38); ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,.22)"; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(500, 420, 118, 0.5, Math.PI - 0.5); ctx.stroke();
+    const g = ctx.createRadialGradient(495, 524, 2, 500, 530, 20);
+    g.addColorStop(0, "#FFE9A8"); g.addColorStop(0.6, "#E0A93C"); g.addColorStop(1, "#9C6C18");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(500, 530, 19, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(60,40,10,.6)";
+    ctx.beginPath(); ctx.arc(500, 536, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  },
+  scarf(ctx) {
+    ctx.save();
+    ctx.lineCap = "round";
+    for (let i = 0; i < 3; i++) {
+      ctx.strokeStyle = i % 2 ? "#D96A4A" : "#F0C27A";
+      ctx.lineWidth = 15;
+      ctx.beginPath(); ctx.arc(500, 414, 104 + i * 14, 0.42, Math.PI - 0.42); ctx.stroke();
+    }
+    ctx.fillStyle = "#D96A4A";
+    ctx.beginPath();
+    ctx.moveTo(576, 492); ctx.lineTo(626, 556); ctx.lineTo(590, 572); ctx.lineTo(556, 508);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#F0C27A";
+    ctx.fillRect(592, 536, 28, 12);
+    ctx.restore();
+  },
+  bow(ctx) {
+    ctx.save();
+    ctx.translate(372, 182); ctx.rotate(-0.3);
+    ctx.fillStyle = "#D8537E";
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(s * 52, -40, s * 60, -4);
+      ctx.quadraticCurveTo(s * 52, 32, 0, 0);
+      ctx.fill();
+    }
+    ctx.fillStyle = "#B63E66";
+    ctx.beginPath(); ctx.ellipse(0, 0, 13, 12, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.3)";
+    ctx.beginPath(); ctx.ellipse(-4, -4, 5, 4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  },
+  hat(ctx) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(352, 212);
+    ctx.quadraticCurveTo(500, 60, 648, 212);
+    ctx.quadraticCurveTo(500, 168, 352, 212);
+    ctx.closePath();
+    const g = ctx.createLinearGradient(0, 90, 0, 212);
+    g.addColorStop(0, "#6D8FA8"); g.addColorStop(1, "#44627A");
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,.18)"; ctx.lineWidth = 3;
+    for (let i = 0; i < 5; i++) {
+      ctx.beginPath();
+      ctx.moveTo(380 + i * 62, 206 - i * 2);
+      ctx.quadraticCurveTo(390 + i * 62, 150, 420 + i * 58, 120);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#8FB0C6";
+    ctx.beginPath(); ctx.ellipse(500, 214, 154, 24, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#EDE3D4";
+    ctx.beginPath(); ctx.arc(500, 86, 30, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  },
+  crown(ctx) {
+    ctx.save();
+    const g = ctx.createLinearGradient(0, 100, 0, 200);
+    g.addColorStop(0, "#FFE9A0"); g.addColorStop(1, "#D29B27");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(396, 200);
+    ctx.lineTo(412, 112); ctx.lineTo(456, 164); ctx.lineTo(500, 96);
+    ctx.lineTo(544, 164); ctx.lineTo(588, 112); ctx.lineTo(604, 200);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#B8341F";
+    for (const x of [440, 500, 560]) { ctx.beginPath(); ctx.arc(x, 182, 8, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+  },
+  glasses(ctx) {
+    ctx.save();
+    ctx.strokeStyle = "#4A3B2E"; ctx.lineWidth = 7;
+    ctx.fillStyle = "rgba(210,235,245,.26)";
+    for (const e of [EYE_L, EYE_R]) {
+      ctx.beginPath(); ctx.arc(e[0], e[1] + 2, 56, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.moveTo(EYE_L[0] + 56, 312); ctx.quadraticCurveTo(500, 300, EYE_R[0] - 56, 312); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(EYE_L[0] - 56, 310); ctx.lineTo(360, 288); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(EYE_R[0] + 56, 310); ctx.lineTo(640, 288); ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,.5)"; ctx.lineWidth = 4;
+    for (const e of [EYE_L, EYE_R]) { ctx.beginPath(); ctx.arc(e[0], e[1] + 2, 48, -2.5, -1.7); ctx.stroke(); }
+    ctx.restore();
+  },
+};
+
+function drawWearables(ctx, layer) {
+  const w = S.worn;
+  if (layer === "neck" && w.neck) { if (w.neck === "collar") Wear.collar(ctx); if (w.neck === "scarf") Wear.scarf(ctx); }
+  if (layer === "head" && w.head) { if (w.head === "bow") Wear.bow(ctx); if (w.head === "hat") Wear.hat(ctx); if (w.head === "crown") Wear.crown(ctx); }
+  if (layer === "face" && w.face === "glasses") Wear.glasses(ctx);
+}
+
+/* ---------- комнаты ---------- */
+
+function drawRoom(ctx, w, h, t) {
+  const id = S.room;
+  const horizon = h * 0.62;
+  if (id === "garden") {
+    const sky = ctx.createLinearGradient(0, 0, 0, horizon);
+    sky.addColorStop(0, "#8FC4DD"); sky.addColorStop(1, "#D7EAE2");
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, w, horizon);
+    ctx.fillStyle = "#7FA85C"; ctx.fillRect(0, horizon, w, h - horizon);
+    ctx.fillStyle = "#6B9450";
+    for (let i = 0; i < 5; i++) {
+      const x = (i / 4) * w, r = w * 0.14;
+      ctx.beginPath(); ctx.ellipse(x, horizon + 6, r, r * 0.55, 0, Math.PI, 0); ctx.fill();
+    }
+    ctx.fillStyle = "#8FBE68";
+    for (let i = 0; i < 60; i++) {
+      const x = ((i * 137) % 100) / 100 * w, y = horizon + ((i * 53) % 100) / 100 * (h - horizon);
+      ctx.fillRect(x, y, 2, 7 + (i % 4) * 3);
+    }
+    // бабочка
+    const bx = w * 0.2 + Math.sin(t / 1400) * w * 0.12, by = horizon - 60 + Math.cos(t / 900) * 24;
+    ctx.fillStyle = "#F2C14E";
+    const flap = Math.abs(Math.sin(t / 110));
+    ctx.beginPath(); ctx.ellipse(bx - 7, by, 8 * flap + 2, 9, -0.4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(bx + 7, by, 8 * flap + 2, 9, 0.4, 0, Math.PI * 2); ctx.fill();
+    return;
+  }
+
+  const night = id === "night";
+  const wall = ctx.createLinearGradient(0, 0, 0, horizon);
+  if (night) { wall.addColorStop(0, "#2B2740"); wall.addColorStop(1, "#1C1A2B"); }
+  else { wall.addColorStop(0, "#F0E2CC"); wall.addColorStop(1, "#DFCCAE"); }
+  ctx.fillStyle = wall; ctx.fillRect(0, 0, w, horizon);
+
+  const floor = ctx.createLinearGradient(0, horizon, 0, h);
+  if (night) { floor.addColorStop(0, "#3A3042"); floor.addColorStop(1, "#241F2D"); }
+  else { floor.addColorStop(0, "#C09366"); floor.addColorStop(1, "#9A7249"); }
+  ctx.fillStyle = floor; ctx.fillRect(0, horizon, w, h - horizon);
+
+  // доски пола
+  ctx.save();
+  ctx.strokeStyle = night ? "rgba(0,0,0,.3)" : "rgba(90,60,30,.28)";
+  ctx.lineWidth = 1.5;
+  for (let i = 1; i < 9; i++) {
+    const y = horizon + ((h - horizon) * i) / 9;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+  ctx.restore();
+
+  // плинтус
+  ctx.fillStyle = night ? "#4A4059" : "#E7D7BC";
+  ctx.fillRect(0, horizon - 14, w, 14);
+
+  if (id === "window" || night) {
+    const wx = w * 0.14, wy = h * 0.1, ww = w * 0.3, wh = h * 0.34;
+    ctx.fillStyle = night ? "#121A2E" : "#BFE0EE";
+    ctx.fillRect(wx, wy, ww, wh);
+    if (night) {
+      ctx.fillStyle = "#F3EBC8";
+      ctx.beginPath(); ctx.arc(wx + ww * 0.68, wy + wh * 0.3, Math.min(ww, wh) * 0.16, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,.75)";
+      for (let i = 0; i < 14; i++) {
+        const sx = wx + ((i * 61) % 100) / 100 * ww, sy = wy + ((i * 37) % 100) / 100 * wh;
+        const tw = 0.5 + 0.5 * Math.sin(t / 400 + i);
+        ctx.globalAlpha = 0.4 + tw * 0.5;
+        ctx.fillRect(sx, sy, 2, 2);
+      }
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.fillStyle = "#9AC9A0";
+      ctx.beginPath(); ctx.ellipse(wx + ww * 0.3, wy + wh * 0.92, ww * 0.3, wh * 0.2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(255,240,190,.5)";
+      ctx.beginPath();
+      ctx.moveTo(wx, horizon + 10); ctx.lineTo(wx + ww, horizon + 10);
+      ctx.lineTo(wx + ww * 1.5, h); ctx.lineTo(wx - ww * 0.3, h);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.strokeStyle = night ? "#59496B" : "#F6EDDD"; ctx.lineWidth = 10;
+    ctx.strokeRect(wx, wy, ww, wh);
+    ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(wx + ww / 2, wy); ctx.lineTo(wx + ww / 2, wy + wh); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(wx, wy + wh / 2); ctx.lineTo(wx + ww, wy + wh / 2); ctx.stroke();
+  }
+
+  if (night) {
+    // гирлянда
+    ctx.strokeStyle = "rgba(255,255,255,.2)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, h * 0.08); ctx.quadraticCurveTo(w / 2, h * 0.17, w, h * 0.06); ctx.stroke();
+    for (let i = 0; i <= 10; i++) {
+      const p = i / 10;
+      const x = p * w, y = h * 0.08 + Math.sin(p * Math.PI) * h * 0.07;
+      const glow = 0.5 + 0.5 * Math.sin(t / 500 + i * 1.3);
+      ctx.fillStyle = ["#F2C14E", "#E88B6B", "#7FB3C8"][i % 3];
+      ctx.globalAlpha = 0.5 + glow * 0.5;
+      ctx.beginPath(); ctx.arc(x, y + 8, 5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // коврик
+  ctx.save();
+  ctx.fillStyle = night ? "rgba(90,70,110,.5)" : "rgba(176,110,78,.45)";
+  ctx.beginPath(); ctx.ellipse(w / 2, h * 0.9, w * 0.38, h * 0.09, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+</script>
+
+<script>
+"use strict";
+/* ============================================================
+   Анимация, прикосновения и действия ухода.
+   ============================================================ */
+
+const sceneEl = document.getElementById("scene");
+const cv = document.getElementById("cat-canvas");
+const ctx = cv.getContext("2d");
+const bubbleEl = document.getElementById("bubble");
+
+let W = 0, H = 0, DPR = 1, catScale = 1, ox = 0, floorY = 0;
+
+// Плавно тянущиеся значения анимации.
+const A = {
+  blink: 0, blinkAt: 0, lid: 0, squint: 0, pupil: 0.5, smile: 0.2, mouth: 0, whisker: 0,
+  lookX: 0, lookY: 0, tLookX: 0, tLookY: 0,
+  tail: 0, tailSpeed: 1, tailAmp: 1, earTwitch: 0, earAt: 0,
+  petting: 0, purring: false, hearts: [], crumbs: [], foam: [], sparks: [],
+  eat: 0, eatFood: null, wash: 0, headShake: 0, bounce: 0, startled: 0,
+};
+
+function resize() {
+  const r = sceneEl.getBoundingClientRect();
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = Math.max(1, Math.round(r.width)); H = Math.max(1, Math.round(r.height));
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  catScale = Math.min(W / 700, H / 950);
+  ox = W / 2;
+  floorY = H * 0.965;
+  Cat.build(Math.max(0.5, catScale * DPR));
+}
+
+function toVirtual(px, py) {
+  return { x: (px - ox) / catScale + 500, y: (py - floorY) / catScale + 898 };
+}
+
+function ease(cur, target, k, dt) { return cur + (target - cur) * (1 - Math.exp(-k * dt)); }
+
+function say(text, ms) {
+  bubbleEl.textContent = text;
+  bubbleEl.classList.add("show");
+  clearTimeout(say._t);
+  say._t = setTimeout(() => bubbleEl.classList.remove("show"), ms || 2200);
+}
+
+function popCoins(n, px, py) {
+  const el = document.createElement("div");
+  el.className = "coin-pop";
+  el.textContent = (n > 0 ? "+" : "") + n;
+  el.style.left = (px || W / 2) + "px";
+  el.style.top = (py || H * 0.4) + "px";
+  sceneEl.appendChild(el);
+  const t0 = performance.now();
+  (function fly() {
+    const p = (performance.now() - t0) / 900;
+    if (p >= 1) { el.remove(); return; }
+    el.style.transform = "translateY(" + (-60 * p) + "px)";
+    el.style.opacity = String(1 - p);
+    requestAnimationFrame(fly);
+  })();
+}
+
+function addCoins(n, px, py) {
+  S.coins = Math.max(0, S.coins + n);
+  popCoins(n, px, py);
+  if (n > 0) Sound.coin();
+  updateHUD(); save();
+}
+
+/* ---------- цели анимации по настроению ---------- */
+
+function moodTargets() {
+  const m = mood();
+  const base = { lid: 0, squint: 0.06, pupil: 0.45, smile: 0.2, mouth: 0, whisker: 0, tailSpeed: 1, tailAmp: 1 };
+  if (m === "sleep")  return { lid: 1, squint: 0, pupil: 0.3, smile: 0.35, mouth: 0, whisker: 0.4, tailSpeed: 0.25, tailAmp: 0.35 };
+  if (m === "sleepy") return { lid: 0.55, squint: 0.2, pupil: 0.6, smile: 0.1, mouth: 0, whisker: 0.5, tailSpeed: 0.5, tailAmp: 0.6 };
+  if (m === "happy")  return { lid: 0, squint: 0.52, pupil: 0.5, smile: 1, mouth: 0, whisker: -0.3, tailSpeed: 2.1, tailAmp: 1.5 };
+  if (m === "hungry") return { lid: 0, squint: 0, pupil: 0.92, smile: 0, mouth: 0.25, whisker: 0.2, tailSpeed: 1.7, tailAmp: 1.2 };
+  if (m === "sad")    return { lid: 0.3, squint: 0.1, pupil: 0.7, smile: 0, mouth: 0, whisker: 1, tailSpeed: 0.45, tailAmp: 0.4 };
+  if (m === "dirty")  return { lid: 0.18, squint: 0.12, pupil: 0.55, smile: 0.05, mouth: 0, whisker: 0.7, tailSpeed: 0.8, tailAmp: 0.8 };
+  return base;
+}
+
+/* ---------- кадр ---------- */
+
+let last = performance.now();
+
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  const t = now;
+
+  // моргание: раз в 2.5–6 с, быстрое
+  if (now > A.blinkAt) { A.blinkAt = now + 2500 + Math.random() * 3500; A.blink = 1; }
+  A.blink = Math.max(0, A.blink - dt * 7);
+  const blinkCurve = Math.sin(Math.min(1, A.blink) * Math.PI);
+
+  // подёргивание уха
+  if (now > A.earAt) { A.earAt = now + 4000 + Math.random() * 6000; A.earTwitch = 1; }
+  A.earTwitch = Math.max(0, A.earTwitch - dt * 4);
+
+  const tg = moodTargets();
+  const petBoost = Math.min(1, A.petting);
+  A.lid = ease(A.lid, tg.lid, 6, dt);
+  A.squint = ease(A.squint, Math.max(tg.squint, petBoost * 0.6), 6, dt);
+  A.pupil = ease(A.pupil, tg.pupil, 4, dt);
+  A.smile = ease(A.smile, Math.max(tg.smile, petBoost), 5, dt);
+  A.mouth = ease(A.mouth, tg.mouth * (0.6 + 0.4 * Math.sin(t / 420)) + A.eat * 0.5, 8, dt);
+  A.whisker = ease(A.whisker, tg.whisker, 4, dt);
+  A.tailSpeed = ease(A.tailSpeed, tg.tailSpeed, 3, dt);
+  A.tailAmp = ease(A.tailAmp, tg.tailAmp, 3, dt);
+  A.lookX = ease(A.lookX, A.tLookX, 7, dt);
+  A.lookY = ease(A.lookY, A.tLookY, 7, dt);
+  A.tail += dt * A.tailSpeed;
+  A.petting = Math.max(0, A.petting - dt * 0.8);
+  A.startled = Math.max(0, A.startled - dt * 2.5);
+  A.headShake = Math.max(0, A.headShake - dt * 2.2);
+  A.bounce = Math.max(0, A.bounce - dt * 2.4);
+  A.eat = Math.max(0, A.eat - dt * 0.55);
+  A.wash = Math.max(0, A.wash - dt * 0.35);
+
+  if (A.purring !== (A.petting > 0.15 && !S.sleeping)) {
+    A.purring = A.petting > 0.15 && !S.sleeping;
+    Sound.purr(A.purring);
+  }
+
+  // ---- рисуем ----
+  ctx.clearRect(0, 0, W, H);
+  drawRoom(ctx, W, H, t);
+
+  const breath = Math.sin(t / (S.sleeping ? 2100 : 1300)) * (S.sleeping ? 0.022 : 0.012);
+  const sit = S.sleeping ? 26 : 0;
+
+  ctx.save();
+  ctx.translate(ox, floorY);
+  ctx.scale(catScale, catScale);
+  ctx.translate(-500, -898 + sit);
+
+  // тень
+  ctx.save();
+  ctx.fillStyle = "rgba(40,24,14,.28)";
+  ctx.beginPath(); ctx.ellipse(500, 902, 230, 34, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  const L = Cat.layers;
+  if (L) {
+    // тело — «дышит»
+    ctx.save();
+    ctx.translate(500, 898);
+    ctx.scale(1 + breath * 0.6, 1 - breath);
+    ctx.translate(-500, -898);
+    ctx.drawImage(L.body.cv, L.body.x0, L.body.y0, L.body.w, L.body.h);
+    ctx.restore();
+
+    // хвост обёрнут вокруг лап, поэтому поверх тела
+    ctx.save();
+    ctx.translate(TAIL_BASE[0], TAIL_BASE[1]);
+    const flick = mood() === "sad" || mood() === "dirty" ? 0.5 : 1;
+    ctx.rotate(Math.sin(A.tail * 1.6) * 0.07 * A.tailAmp * flick);
+    ctx.drawImage(L.tail.cv, L.tail.x0, L.tail.y0, L.tail.w, L.tail.h);
+    ctx.restore();
+
+    drawWearables(ctx, "neck");
+
+    // голова: наклон к курсору, подпрыгивание, подёргивание уха
+    ctx.save();
+    ctx.translate(500, 470);
+    const tilt = A.lookX * 0.1 + Math.sin(t / 2600) * 0.02 + Math.sin(t / 60) * 0.02 * A.headShake;
+    ctx.rotate(tilt);
+    const headY = -breath * 70 - A.bounce * 26 + (S.sleeping ? 34 : 0) + A.eat * 40;
+    ctx.translate(A.lookX * 10, headY);
+    ctx.translate(-500, -470);
+    ctx.save();
+    if (A.earTwitch > 0) { ctx.translate(500, 300); ctx.rotate(Math.sin(A.earTwitch * 22) * 0.02 * A.earTwitch); ctx.translate(-500, -300); }
+    ctx.drawImage(L.head.cv, L.head.x0, L.head.y0, L.head.w, L.head.h);
+    ctx.restore();
+    drawFace(ctx, {
+      blink: blinkCurve * 0.9, lid: Math.max(A.lid, blinkCurve), squint: A.squint,
+      pupil: A.pupil, smile: A.smile, mouth: A.mouth, whisker: A.whisker,
+      lookX: A.lookX, lookY: A.lookY,
+    });
+    drawWearables(ctx, "face");
+    drawWearables(ctx, "head");
+    ctx.restore();
+  }
+
+  // грязь поверх шерсти
+  if (S.stats.clean < 55) {
+    const dirt = (55 - S.stats.clean) / 55;
+    const rnd = rngFrom("dirt");
+    ctx.save();
+    ctx.globalAlpha = Math.min(0.5, dirt * 0.55);
+    ctx.fillStyle = "#6B4A2A";
+    for (let i = 0; i < 16; i++) {
+      const x = 360 + rnd() * 280, y = 460 + rnd() * 420, r = 9 + rnd() * 20;
+      ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.7, rnd() * 3, 0, Math.PI * 2); ctx.fill();
+    }
+    if (dirt > 0.6) {
+      ctx.globalAlpha = 0.55; ctx.fillStyle = "#4F4A2A";
+      for (let i = 0; i < 8; i++) {
+        const x = 380 + rnd() * 240, y = 280 + rnd() * 160, r = 5 + rnd() * 9;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  // миска с едой
+  if (A.eat > 0.02 && A.eatFood) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, A.eat * 2);
+    ctx.fillStyle = "#B6BEC4";
+    ctx.beginPath(); ctx.ellipse(500, 880, 118, 36, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#8E989F";
+    ctx.beginPath(); ctx.ellipse(500, 872, 92, 26, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = A.eatFood === "milk" ? "#F6F2E7" : "#C98247";
+    ctx.beginPath(); ctx.ellipse(500, 870, 78 * Math.min(1, A.eat * 1.4), 20 * Math.min(1, A.eat * 1.4), 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  // пена при мытье
+  for (let i = A.foam.length - 1; i >= 0; i--) {
+    const f = A.foam[i];
+    f.y -= f.v * dt * 60; f.life -= dt;
+    if (f.life <= 0) { A.foam.splice(i, 1); continue; }
+    ctx.save();
+    ctx.globalAlpha = Math.min(0.85, f.life);
+    ctx.fillStyle = "rgba(255,255,255,.9)";
+    ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "rgba(170,205,220,.8)"; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.restore();
+  }
+
+  // сердечки от поглаживаний
+  for (let i = A.hearts.length - 1; i >= 0; i--) {
+    const hh = A.hearts[i];
+    hh.y -= dt * 90; hh.life -= dt;
+    if (hh.life <= 0) { A.hearts.splice(i, 1); continue; }
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, hh.life);
+    ctx.translate(hh.x, hh.y);
+    ctx.scale(hh.s, hh.s);
+    ctx.fillStyle = "#D8537E";
+    ctx.beginPath();
+    ctx.moveTo(0, 8);
+    ctx.bezierCurveTo(-14, -4, -8, -16, 0, -8);
+    ctx.bezierCurveTo(8, -16, 14, -4, 0, 8);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // «Zzz» во сне
+  if (S.sleeping) {
+    ctx.save();
+    ctx.fillStyle = "rgba(255,255,255,.75)";
+    ctx.font = "600 44px " + "Fraunces, Georgia, serif";
+    for (let i = 0; i < 3; i++) {
+      const p = ((t / 2600) + i * 0.33) % 1;
+      ctx.globalAlpha = Math.sin(p * Math.PI) * 0.8;
+      ctx.fillText("z", 640 + p * 70, 300 - p * 150 + i * 6);
+    }
+    ctx.restore();
+  }
+
+  ctx.restore();
+  requestAnimationFrame(frame);
+}
+
+/* ---------- прикосновения ---------- */
+
+function zoneAt(v) {
+  const dx = v.x - 500;
+  if (v.y < 240 && Math.abs(dx) > 55 && Math.abs(dx) < 200) return "ear";
+  if (Math.hypot(v.x - NOSE[0], v.y - NOSE[1]) < 52) return "nose";
+  if (Math.hypot(dx / 165, (v.y - 330) / 155) < 1.1) return "head";
+  if (v.y > 760 && v.x > 600) return "tail";
+  if (Math.hypot(dx / 175, (v.y - 680) / 240) < 1.05) return "belly";
+  return "floor";
+}
+
+const REACT = {
+  ear:   ["Ухом дёрнул — щекотно.", "Ухо не трогай, оно важное.", "Мррр… ещё?"],
+  nose:  ["Чих!", "Нос — это святое.", "Фыр!"],
+  head:  ["Мурррр…", "Чешется именно здесь.", "Глаза сами закрываются."],
+  belly: ["Живот — ловушка. Ты попался.", "Урчит, но не от еды.", "Можно, но осторожно."],
+  tail:  ["За хвост — нельзя!", "Мяу! Это перебор.", "Хвост обиделся."],
+  floor: ["Что там?", "Смотрит в пустоту.", "Хвостом по полу."],
+};
+
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function touch(zone, sx, sy) {
+  if (S.sleeping) {
+    if (zone !== "floor") {
+      S.sleeping = false;
+      say("Разбудил. Ну спасибо.");
+      Sound.meow(0.8);
+      S.stats.happy = clamp(S.stats.happy - 4, 0, MAX);
+      updateHUD(); save();
+    }
+    return;
+  }
+  S.pets++;
+  if (zone === "tail") {
+    S.stats.happy = clamp(S.stats.happy - 3, 0, MAX);
+    A.headShake = 1; A.startled = 1;
+    Sound.meow(1.25);
+    say(pick(REACT.tail));
+  } else if (zone === "nose") {
+    A.startled = 1; A.bounce = 0.6;
+    Sound.chirp();
+    say(pick(REACT.nose));
+  } else if (zone === "ear") {
+    A.earTwitch = 1;
+    Sound.chirp();
+    say(pick(REACT.ear));
+  } else if (zone === "head" || zone === "belly") {
+    S.stats.happy = clamp(S.stats.happy + 1.5, 0, MAX);
+    A.petting = Math.min(2.2, A.petting + 0.7);
+    A.hearts.push({ x: 440 + Math.random() * 120, y: 420, life: 1.3, s: 0.8 + Math.random() * 0.6 });
+    say(pick(REACT[zone]));
+  } else {
+    say(pick(REACT.floor));
+  }
+  updateHUD(); save();
+}
+
+let pressing = false, lastPt = null, strokeAcc = 0;
+
+sceneEl.addEventListener("pointerdown", (e) => {
+  sceneEl.setPointerCapture(e.pointerId);
+  pressing = true; strokeAcc = 0;
+  const r = sceneEl.getBoundingClientRect();
+  lastPt = { x: e.clientX - r.left, y: e.clientY - r.top };
+  touch(zoneAt(toVirtual(lastPt.x, lastPt.y)), lastPt.x, lastPt.y);
+});
+
+sceneEl.addEventListener("pointermove", (e) => {
+  const r = sceneEl.getBoundingClientRect();
+  const px = e.clientX - r.left, py = e.clientY - r.top;
+  const v = toVirtual(px, py);
+  A.tLookX = clamp((v.x - 500) / 420, -1, 1);
+  A.tLookY = clamp((v.y - 330) / 420, -1, 1);
+
+  if (!pressing || S.sleeping) { lastPt = { x: px, y: py }; return; }
+  if (lastPt) {
+    const d = Math.hypot(px - lastPt.x, py - lastPt.y);
+    const z = zoneAt(v);
+    if (z === "head" || z === "belly") {
+      strokeAcc += d;
+      A.petting = Math.min(2.4, A.petting + d / 260);
+      if (strokeAcc > 140) {
+        strokeAcc = 0;
+        S.stats.happy = clamp(S.stats.happy + 1.2, 0, MAX);
+        A.hearts.push({ x: 430 + Math.random() * 140, y: 430, life: 1.2, s: 0.7 + Math.random() * 0.5 });
+        updateHUD(); save();
+      }
+    }
+  }
+  lastPt = { x: px, y: py };
+});
+
+function endPress() { pressing = false; lastPt = null; }
+sceneEl.addEventListener("pointerup", endPress);
+sceneEl.addEventListener("pointercancel", endPress);
+sceneEl.addEventListener("pointerleave", () => { endPress(); A.tLookX = 0; A.tLookY = 0; });
+</script>
+
+<script>
+"use strict";
+/* ============================================================
+   Интерфейс: показатели, действия, магазин, внешность, мини-игры.
+   ============================================================ */
+
+const STAT_DEFS = [
+  { key: "hunger", name: "Сытость" },
+  { key: "energy", name: "Бодрость" },
+  { key: "happy",  name: "Радость" },
+  { key: "clean",  name: "Чистота" },
+];
+
+const statsEl = document.getElementById("stats");
+const sheetEl = document.getElementById("sheet");
+const sheetBody = document.getElementById("sheetBody");
+const sheetTitle = document.getElementById("sheetTitle");
+
+statsEl.innerHTML = STAT_DEFS.map(d =>
+  '<div class="stat" data-k="' + d.key + '">' +
+    '<div class="stat-top"><span class="stat-name">' + d.name + '</span><span class="stat-val">0</span></div>' +
+    '<div class="meter"><i style="width:0%"></i></div>' +
+  '</div>').join("");
+
+function barColor(v) { return v < 25 ? "var(--bad)" : v < 55 ? "var(--warn)" : "var(--good)"; }
+
+function updateHUD() {
+  for (const d of STAT_DEFS) {
+    const box = statsEl.querySelector('[data-k="' + d.key + '"]');
+    const v = Math.round(S.stats[d.key]);
+    box.querySelector(".stat-val").textContent = v;
+    const bar = box.querySelector(".meter > i");
+    bar.style.width = v + "%";
+    bar.style.background = barColor(v);
+    box.classList.toggle("low", v < 25);
+  }
+  document.getElementById("coinCount").textContent = S.coins;
+  document.getElementById("coinCount2").textContent = S.coins;
+  document.getElementById("petName").textContent = S.name;
+  const days = Math.max(1, Math.floor((Date.now() - S.born) / 86400000) + 1);
+  const stage = days < 7 ? "котёнок" : days < 30 ? "подросток" : "взрослый кот";
+  document.getElementById("petAge").textContent = stage + ", " + days + "-й день";
+  document.getElementById("soundWave").style.opacity = S.sound ? "1" : "0.2";
+}
+
+/* ---------- панель ---------- */
+
+function openSheet(title, html) {
+  sheetTitle.textContent = title;
+  sheetBody.innerHTML = html;
+  sheetEl.hidden = false;
+}
+function closeSheet() { sheetEl.hidden = true; stopGame(); sheetBody.innerHTML = ""; }
+document.getElementById("sheetClose").addEventListener("click", closeSheet);
+sheetEl.addEventListener("click", (e) => { if (e.target === sheetEl) closeSheet(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !sheetEl.hidden) closeSheet(); });
+
+/* ---------- кормление ---------- */
+
+function openFeed() {
+  const cards = FOODS.map(f => {
+    const afford = S.coins >= f.price;
+    return '<button class="card" data-food="' + f.id + '"' + (afford ? "" : " disabled") + '>' +
+      '<h4>' + f.name + '</h4>' +
+      '<p>' + f.desc + '</p>' +
+      '<p>Сытость +' + f.hunger + ' · Радость +' + f.happy + '</p>' +
+      '<span class="price">' + (f.price ? '<span class="coin-dot"></span>' + f.price : "бесплатно") + '</span>' +
+    '</button>';
+  }).join("");
+  openSheet("Чем кормим", '<div class="grid">' + cards + '</div>' +
+    '<p class="hint">Сухой корм всегда в миске. Остальное покупается за монеты — их дают мини-игры.</p>');
+  sheetBody.querySelectorAll("[data-food]").forEach(btn => {
+    btn.addEventListener("click", () => feed(btn.dataset.food));
+  });
+}
+
+function feed(id) {
+  const f = FOODS.find(x => x.id === id);
+  if (!f || S.coins < f.price) return;
+  if (S.stats.hunger > 94) { say("Больше не лезет."); return; }
+  S.coins -= f.price;
+  S.stats.hunger = clamp(S.stats.hunger + f.hunger, 0, MAX);
+  S.stats.happy = clamp(S.stats.happy + f.happy, 0, MAX);
+  S.stats.energy = clamp(S.stats.energy + f.energy, 0, MAX);
+  S.stats.clean = clamp(S.stats.clean - 4, 0, MAX);
+  S.meals++;
+  S.sleeping = false;
+  A.eat = 1; A.eatFood = f.id; A.bounce = 0.8;
+  closeSheet();
+  let n = 0;
+  const chew = setInterval(() => { Sound.crunch(); if (++n > 5) clearInterval(chew); }, 220);
+  say(f.id === "milk" ? "Лакает молоко." : "Хрум-хрум.");
+  updateHUD(); save(true);
+}
+
+/* ---------- мытьё и сон ---------- */
+
+function wash() {
+  if (S.stats.clean > 92) { say("И так чистый."); return; }
+  S.sleeping = false;
+  S.stats.clean = MAX;
+  S.stats.happy = clamp(S.stats.happy - 3, 0, MAX);
+  S.washes++;
+  A.wash = 1; A.headShake = 1;
+  for (let i = 0; i < 40; i++) {
+    A.foam.push({ x: 340 + Math.random() * 320, y: 500 + Math.random() * 380, r: 6 + Math.random() * 16, v: 0.4 + Math.random(), life: 1 + Math.random() * 1.6 });
+  }
+  Sound.splash();
+  setTimeout(() => Sound.meow(1.15), 450);
+  say("Мокрый и недовольный. Зато чистый.");
+  updateHUD(); save(true);
+}
+
+function toggleSleep() {
+  if (!S.sleeping && S.stats.energy > 88) { say("Совсем не хочет спать."); return; }
+  S.sleeping = !S.sleeping;
+  if (S.sleeping) { Sound.purr(false); say("Свернулся клубком."); }
+  else { say("Потянулся."); Sound.meow(0.9); }
+  updateHUD(); save(true);
+}
+
+/* ---------- магазин ---------- */
+
+function shopHTML(tab) {
+  if (tab === "rooms") {
+    return '<div class="grid">' + ROOMS.map(r => {
+      const owned = S.owned.includes(r.id), active = S.room === r.id;
+      return '<button class="card ' + (active ? "worn" : owned ? "owned" : "") + '" data-room="' + r.id + '"' +
+        (!owned && S.coins < r.price ? " disabled" : "") + '>' +
+        '<h4>' + r.name + '</h4><p>' + r.desc + '</p>' +
+        '<span class="price">' + (active ? "на сцене" : owned ? "выбрать" : '<span class="coin-dot"></span>' + r.price) + '</span></button>';
+    }).join("") + '</div>';
+  }
+  return '<div class="grid">' + WEARABLES.map(w => {
+    const owned = S.owned.includes(w.id), worn = S.worn[w.slot] === w.id;
+    return '<button class="card ' + (worn ? "worn" : owned ? "owned" : "") + '" data-wear="' + w.id + '"' +
+      (!owned && S.coins < w.price ? " disabled" : "") + '>' +
+      '<h4>' + w.name + '</h4><p>' + w.desc + '</p>' +
+      '<span class="price">' + (worn ? "снять" : owned ? "надеть" : '<span class="coin-dot"></span>' + w.price) + '</span></button>';
+  }).join("") + '</div>';
+}
+
+function openShop(tab) {
+  tab = tab || "wear";
+  openSheet("Магазин",
+    '<div class="tabs">' +
+      '<button class="tab" data-tab="wear" aria-selected="' + (tab === "wear") + '">Наряды</button>' +
+      '<button class="tab" data-tab="rooms" aria-selected="' + (tab === "rooms") + '">Комнаты</button>' +
+    '</div>' + shopHTML(tab) +
+    '<p class="hint">Монеты зарабатываются в мини-играх. Купленное остаётся навсегда.</p>');
+
+  sheetBody.querySelectorAll("[data-tab]").forEach(b => b.addEventListener("click", () => openShop(b.dataset.tab)));
+  sheetBody.querySelectorAll("[data-wear]").forEach(b => b.addEventListener("click", () => {
+    const w = WEARABLES.find(x => x.id === b.dataset.wear);
+    if (!S.owned.includes(w.id)) {
+      if (S.coins < w.price) return;
+      S.coins -= w.price; S.owned.push(w.id);
+      S.stats.happy = clamp(S.stats.happy + 4, 0, MAX);
+      Sound.coin();
+    }
+    S.worn[w.slot] = S.worn[w.slot] === w.id ? null : w.id;
+    Sound.pop();
+    updateHUD(); save(true); openShop("wear");
+  }));
+  sheetBody.querySelectorAll("[data-room]").forEach(b => b.addEventListener("click", () => {
+    const r = ROOMS.find(x => x.id === b.dataset.room);
+    if (!S.owned.includes(r.id)) {
+      if (S.coins < r.price) return;
+      S.coins -= r.price; S.owned.push(r.id); Sound.coin();
+    }
+    S.room = r.id; Sound.pop();
+    updateHUD(); save(true); openShop("rooms");
+  }));
+}
+
+/* ---------- внешность ---------- */
+
+function paintCoatSwatch(canvas, c) {
+  const g = canvas.getContext("2d");
+  const w = canvas.width = 92, h = canvas.height = 92;
+  g.fillStyle = c.base; g.fillRect(0, 0, w, h);
+  if (c.pattern === "tabby") {
+    g.strokeStyle = c.mark; g.lineWidth = 9; g.globalAlpha = 0.65;
+    for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(-6, 12 + i * 24); g.quadraticCurveTo(w / 2, 2 + i * 24, w + 6, 14 + i * 24); g.stroke(); }
+  } else if (c.pattern === "tuxedo") {
+    g.fillStyle = c.belly; g.beginPath(); g.ellipse(w / 2, h, w * 0.3, h * 0.6, 0, 0, Math.PI * 2); g.fill();
+  } else if (c.pattern === "point") {
+    const rg = g.createRadialGradient(w / 2, h, 4, w / 2, h, h);
+    rg.addColorStop(0, c.mark); rg.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = rg; g.fillRect(0, 0, w, h);
+  } else if (c.pattern === "calico") {
+    g.fillStyle = c.mark; g.beginPath(); g.ellipse(26, 30, 24, 20, 0.4, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#3A3336"; g.beginPath(); g.ellipse(66, 64, 22, 18, -0.3, 0, Math.PI * 2); g.fill();
+  }
+  g.globalAlpha = 1;
+  g.fillStyle = "rgba(255,255,255,.14)"; g.fillRect(0, 0, w, h * 0.32);
+}
+
+function paintEyeSwatch(canvas, e) {
+  const g = canvas.getContext("2d");
+  const w = canvas.width = 92, h = canvas.height = 92;
+  g.fillStyle = "#2A1F1C"; g.fillRect(0, 0, w, h);
+  const draw = (cx, pal) => {
+    const rg = g.createRadialGradient(cx - 5, 38, 2, cx, 46, 30);
+    rg.addColorStop(0, pal.inner); rg.addColorStop(0.6, mix(pal.inner, pal.outer, 0.5)); rg.addColorStop(1, pal.outer);
+    g.fillStyle = rg; g.beginPath(); g.arc(cx, 46, 30, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#120C0C"; g.beginPath(); g.ellipse(cx, 46, 6, 27, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "rgba(255,255,255,.9)"; g.beginPath(); g.arc(cx - 10, 34, 6, 0, Math.PI * 2); g.fill();
+  };
+  if (e.odd) { draw(26, e); draw(66, e.odd); } else draw(46, e);
+}
+
+function openLook() {
+  const coats = COATS.map(c => '<button class="sw" data-coat="' + c.id + '" aria-pressed="' + (S.coat === c.id) + '" title="' + c.name + '"><canvas></canvas></button>').join("");
+  const eyes = EYES.map(e => '<button class="sw" data-eye="' + e.id + '" aria-pressed="' + (S.eyes === e.id) + '" title="' + e.name + '"><canvas></canvas></button>').join("");
+  openSheet("Внешность",
+    '<div class="section-label">Шерсть</div><div class="swatches" id="coatRow">' + coats + '</div>' +
+    '<div class="section-label">Глаза</div><div class="swatches" id="eyeRow">' + eyes + '</div>' +
+    '<div class="section-label">Имя</div>' +
+    '<label class="field" for="nameInput"><input id="nameInput" type="text" maxlength="18" value="' + S.name.replace(/"/g, "&quot;") + '"></label>' +
+    '<p class="hint">Смена окраса бесплатна — это же твой кот.</p>');
+
+  sheetBody.querySelectorAll("[data-coat]").forEach(b => {
+    paintCoatSwatch(b.querySelector("canvas"), COATS.find(c => c.id === b.dataset.coat));
+    b.addEventListener("click", () => { S.coat = b.dataset.coat; Cat.layers = null; Sound.pop(); save(true); openLook(); });
+  });
+  sheetBody.querySelectorAll("[data-eye]").forEach(b => {
+    paintEyeSwatch(b.querySelector("canvas"), EYES.find(e => e.id === b.dataset.eye));
+    b.addEventListener("click", () => { S.eyes = b.dataset.eye; Cat.layers = null; Sound.pop(); save(true); openLook(); });
+  });
+  const input = document.getElementById("nameInput");
+  input.addEventListener("input", () => { S.name = input.value.trim() || "Мурлыка"; updateHUD(); save(); });
+  resize();
+}
+</script>
+
+<script>
+"use strict";
+/* ============================================================
+   Мини-игры, онбординг и запуск.
+   ============================================================ */
+
+let gameLoop = null, gameTimer = null;
+function stopGame() {
+  if (gameLoop) { cancelAnimationFrame(gameLoop); gameLoop = null; }
+  if (gameTimer) { clearInterval(gameTimer); gameTimer = null; }
+}
+
+function finishGame(name, score, key) {
+  stopGame();
+  const best = Math.max(S.records[key] || 0, score);
+  const isRecord = score > (S.records[key] || 0);
+  S.records[key] = best;
+  S.games++;
+  S.stats.happy = clamp(S.stats.happy + Math.min(18, 6 + score / 3), 0, MAX);
+  S.stats.energy = clamp(S.stats.energy - 6, 0, MAX);
+  S.stats.hunger = clamp(S.stats.hunger - 4, 0, MAX);
+  S.coins += score;
+  updateHUD(); save(true);
+  openSheet(name, '<div class="card" style="text-align:center;padding:22px">' +
+    '<h4 style="font-size:17px">' + (isRecord ? "Новый рекорд!" : "Игра окончена") + '</h4>' +
+    '<p style="font-size:14px">Очков: <b>' + score + '</b> · Лучший результат: <b>' + best + '</b></p>' +
+    '<p style="font-size:14px">Заработано монет: <b>' + score + '</b></p></div>' +
+    '<button class="primary" id="againBtn">Ещё раз</button>' +
+    '<p class="hint">' + S.name + ' доволен и немного устал.</p>');
+  document.getElementById("againBtn").addEventListener("click", openPlay);
+  Sound.coin();
+}
+
+function gameShell(title, hudRight) {
+  openSheet(title,
+    '<div class="game-hud"><span id="gScore">0</span><span id="gTime">' + hudRight + '</span></div>' +
+    '<div class="game-wrap" id="gWrap" style="height:300px"><canvas id="gCanvas"></canvas></div>' +
+    '<p class="hint" id="gHint"></p>');
+  const wrap = document.getElementById("gWrap");
+  const c = document.getElementById("gCanvas");
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = wrap.clientWidth, h = 300;
+  c.width = w * dpr; c.height = h * dpr;
+  const g = c.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { c, g, w, h };
+}
+
+/* ---------- мини-игра: мышки ---------- */
+
+function startMice() {
+  const { c, g, w, h } = gameShell("Поймай мышку", "30");
+  document.getElementById("gHint").textContent = "Мыши выбегают из нор. Лови касанием, пока не убежали.";
+  let score = 0, time = 30, mice = [], spawnIn = 0;
+
+  c.addEventListener("pointerdown", (e) => {
+    const r = c.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    for (let i = mice.length - 1; i >= 0; i--) {
+      const m = mice[i];
+      if (Math.hypot(m.x - x, m.y - y) < 32) {
+        mice.splice(i, 1); score++; Sound.chirp();
+        document.getElementById("gScore").textContent = score;
+        return;
+      }
+    }
+    Sound.pop();
+  });
+
+  gameTimer = setInterval(() => {
+    time--;
+    const el = document.getElementById("gTime");
+    if (el) el.textContent = String(time);
+    if (time <= 0) finishGame("Поймай мышку", score, "mice");
+  }, 1000);
+
+  let prev = performance.now();
+  (function loop(now) {
+    const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
+    spawnIn -= dt;
+    if (spawnIn <= 0) {
+      spawnIn = Math.max(0.28, 1.1 - (30 - time) * 0.025);
+      const dir = Math.random() < 0.5 ? 1 : -1;
+      mice.push({ x: dir > 0 ? -30 : w + 30, y: 50 + Math.random() * (h - 100), v: dir * (90 + Math.random() * 130), wob: Math.random() * 6 });
+    }
+    g.clearRect(0, 0, w, h);
+    const fl = g.createLinearGradient(0, 0, 0, h);
+    fl.addColorStop(0, "#C8A878"); fl.addColorStop(1, "#A47E52");
+    g.fillStyle = fl; g.fillRect(0, 0, w, h);
+    g.fillStyle = "rgba(60,40,20,.25)";
+    for (let i = 0; i < 4; i++) { g.beginPath(); g.ellipse((i + 1) * w / 5, h - 8, 26, 12, 0, Math.PI, 0); g.fill(); }
+
+    for (let i = mice.length - 1; i >= 0; i--) {
+      const m = mice[i];
+      m.x += m.v * dt;
+      m.wob += dt * 12;
+      const y = m.y + Math.sin(m.wob) * 4;
+      if (m.x < -60 || m.x > w + 60) { mice.splice(i, 1); continue; }
+      g.save();
+      g.translate(m.x, y);
+      g.scale(m.v > 0 ? 1 : -1, 1);
+      g.strokeStyle = "#9A8A80"; g.lineWidth = 2.5; g.lineCap = "round";
+      g.beginPath(); g.moveTo(-16, 2); g.quadraticCurveTo(-34, 2, -30, -10); g.stroke();
+      g.fillStyle = "#8E8078";
+      g.beginPath(); g.ellipse(0, 0, 18, 12, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#C9A9A2";
+      g.beginPath(); g.arc(11, -9, 7, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#8E8078";
+      g.beginPath(); g.ellipse(16, -1, 8, 7, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#2B2320";
+      g.beginPath(); g.arc(20, -2, 2, 0, Math.PI * 2); g.fill();
+      g.restore();
+    }
+    gameLoop = requestAnimationFrame(loop);
+  })(prev);
+}
+
+/* ---------- мини-игра: клубки ---------- */
+
+function startYarn() {
+  const { c, g, w, h } = gameShell("Лови клубки", "3 жизни");
+  document.getElementById("gHint").textContent = "Веди лапу пальцем. Клубки лови, ботинки пропускай.";
+  let score = 0, lives = 3, items = [], spawnIn = 0, paw = w / 2;
+
+  function movePaw(e) {
+    const r = c.getBoundingClientRect();
+    paw = clamp((e.touches ? e.touches[0].clientX : e.clientX) - r.left, 36, w - 36);
+  }
+  c.addEventListener("pointermove", movePaw);
+  c.addEventListener("pointerdown", movePaw);
+
+  let prev = performance.now();
+  (function loop(now) {
+    const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
+    spawnIn -= dt;
+    if (spawnIn <= 0) {
+      spawnIn = Math.max(0.35, 0.95 - score * 0.012);
+      const bad = Math.random() < 0.22;
+      items.push({ x: 30 + Math.random() * (w - 60), y: -24, v: 110 + Math.random() * 90 + score * 1.5, bad, spin: Math.random() * 6 });
+    }
+    g.clearRect(0, 0, w, h);
+    const bg = g.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, "#E3D3B8"); bg.addColorStop(1, "#C7AE8C");
+    g.fillStyle = bg; g.fillRect(0, 0, w, h);
+
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      it.y += it.v * dt; it.spin += dt * 4;
+      if (it.y > h - 34 && Math.abs(it.x - paw) < 44) {
+        items.splice(i, 1);
+        if (it.bad) { lives--; Sound.sad(); } else { score++; Sound.chirp(); }
+        document.getElementById("gScore").textContent = score;
+        const el = document.getElementById("gTime");
+        if (el) el.textContent = lives + (lives === 1 ? " жизнь" : " жизни");
+        if (lives <= 0) { finishGame("Лови клубки", score, "yarn"); return; }
+        continue;
+      }
+      if (it.y > h + 30) {
+        items.splice(i, 1);
+        if (!it.bad) {
+          lives--; Sound.sad();
+          const el = document.getElementById("gTime");
+          if (el) el.textContent = lives + (lives === 1 ? " жизнь" : " жизни");
+          if (lives <= 0) { finishGame("Лови клубки", score, "yarn"); return; }
+        }
+        continue;
+      }
+      g.save(); g.translate(it.x, it.y); g.rotate(it.spin);
+      if (it.bad) {
+        g.fillStyle = "#5C4433";
+        g.beginPath(); g.ellipse(0, 4, 20, 11, 0, 0, Math.PI * 2); g.fill();
+        g.fillRect(-6, -14, 16, 18);
+      } else {
+        g.fillStyle = "#D2694F";
+        g.beginPath(); g.arc(0, 0, 17, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = "rgba(255,255,255,.5)"; g.lineWidth = 2;
+        for (let k = -2; k <= 2; k++) { g.beginPath(); g.arc(0, 0, 17, k * 0.5, k * 0.5 + 1.6); g.stroke(); }
+      }
+      g.restore();
+    }
+
+    // лапа
+    g.save();
+    g.translate(paw, h - 18);
+    g.fillStyle = coat().base;
+    g.beginPath(); g.ellipse(0, 0, 40, 22, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#E7B4AE";
+    for (let i = -1; i <= 1; i++) { g.beginPath(); g.ellipse(i * 15, -8, 7, 6, 0, 0, Math.PI * 2); g.fill(); }
+    g.beginPath(); g.ellipse(0, 5, 15, 10, 0, 0, Math.PI * 2); g.fill();
+    g.restore();
+
+    gameLoop = requestAnimationFrame(loop);
+  })(prev);
+}
+
+/* ---------- мини-игра: память ---------- */
+
+const MEM_ICONS = {
+  fish: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M6 24c6-9 14-13 22-13s13 5 14 13c-1 8-6 13-14 13S12 33 6 24z"/><path d="M42 24l-8-7v14l8-7z"/><circle cx="16" cy="21" r="1.6" fill="currentColor"/></svg>',
+  paw:  '<svg viewBox="0 0 48 48" fill="currentColor"><ellipse cx="24" cy="31" rx="11" ry="9"/><ellipse cx="12" cy="20" rx="4.6" ry="6"/><ellipse cx="20" cy="14" rx="4.6" ry="6.4"/><ellipse cx="29" cy="14" rx="4.6" ry="6.4"/><ellipse cx="37" cy="20" rx="4.6" ry="6"/></svg>',
+  yarn: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="24" cy="24" r="14"/><path d="M12 20c7 2 15 8 19 14M14 30c6-6 14-10 20-11M20 11c3 7 9 14 15 17"/></svg>',
+  milk: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M16 8h16l4 10v22H12V18l4-10z"/><path d="M12 22h24"/></svg>',
+  bell: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M24 8a10 10 0 0 1 10 10c0 10 4 13 4 13H10s4-3 4-13A10 10 0 0 1 24 8z"/><path d="M20 36a4 4 0 0 0 8 0"/></svg>',
+  bird: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M34 16a8 8 0 1 0-14 5c0 0-8 1-12 9 10 2 16 0 20-3 6-4 7-9 7-9l5-3-6 1z"/><circle cx="31" cy="14" r="1.6" fill="currentColor"/></svg>',
+};
+
+function startMemory() {
+  const keys = Object.keys(MEM_ICONS);
+  const deck = keys.concat(keys).sort(() => Math.random() - 0.5);
+  let open = [], moves = 0, done = 0, lock = false;
+
+  openSheet("Найди пару",
+    '<div class="game-hud"><span>Ходов: <span id="mMoves">0</span></span><span>Пар: <span id="mPairs">0</span>/6</span></div>' +
+    '<div class="memory-grid" id="mGrid">' +
+    deck.map((k, i) => '<button class="mcard" data-i="' + i + '" data-k="' + k + '">' + MEM_ICONS[k] + '</button>').join("") +
+    '</div><p class="hint">Чем меньше ходов, тем больше монет: 60 минус ходы.</p>');
+
+  const grid = document.getElementById("mGrid");
+  grid.addEventListener("click", (e) => {
+    const b = e.target.closest(".mcard");
+    if (!b || lock || b.classList.contains("up") || b.classList.contains("done")) return;
+    b.classList.add("up");
+    open.push(b);
+    Sound.pop();
+    if (open.length === 2) {
+      moves++;
+      document.getElementById("mMoves").textContent = String(moves);
+      if (open[0].dataset.k === open[1].dataset.k) {
+        open.forEach(x => { x.classList.remove("up"); x.classList.add("done"); });
+        open = []; done++;
+        document.getElementById("mPairs").textContent = String(done);
+        Sound.chirp();
+        if (done === 6) setTimeout(() => finishGame("Найди пару", Math.max(6, 60 - moves), "memory"), 500);
+      } else {
+        lock = true;
+        setTimeout(() => { open.forEach(x => x.classList.remove("up")); open = []; lock = false; }, 700);
+      }
+    }
+  });
+}
+
+/* ---------- выбор игры ---------- */
+
+function openPlay() {
+  stopGame();
+  openSheet("Во что играем",
+    '<div class="grid">' +
+      '<button class="card" data-game="mice"><h4>Поймай мышку</h4><p>30 секунд на реакцию.</p><span class="price">Рекорд: ' + (S.records.mice || 0) + '</span></button>' +
+      '<button class="card" data-game="yarn"><h4>Лови клубки</h4><p>Три жизни, растущая скорость.</p><span class="price">Рекорд: ' + (S.records.yarn || 0) + '</span></button>' +
+      '<button class="card" data-game="memory"><h4>Найди пару</h4><p>Шесть пар, чем меньше ходов — тем лучше.</p><span class="price">Рекорд: ' + (S.records.memory || 0) + '</span></button>' +
+    '</div><p class="hint">За очки дают монеты. Игра радует кота, но отнимает силы и аппетит.</p>');
+  sheetBody.querySelectorAll("[data-game]").forEach(b => b.addEventListener("click", () => {
+    S.sleeping = false;
+    if (b.dataset.game === "mice") startMice();
+    else if (b.dataset.game === "yarn") startYarn();
+    else startMemory();
+  }));
+}
+
+/* ---------- онбординг ---------- */
+
+function previewCat(canvas) {
+  const w = canvas.clientWidth || 380, h = canvas.clientHeight || 168;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+  const g = canvas.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const bg = g.createLinearGradient(0, 0, 0, h);
+  bg.addColorStop(0, "#F0E2CC"); bg.addColorStop(1, "#D7C2A4");
+  g.fillStyle = bg; g.fillRect(0, 0, w, h);
+  const s = Math.min(w / 460, h / 330);
+  Cat.layers = null;
+  Cat.build(Math.max(0.5, s * dpr));
+  const L = Cat.layers;
+  if (!L) return;
+  g.save();
+  g.translate(w / 2, h * 0.58);
+  g.scale(s, s);
+  g.translate(-500, -320);
+  g.drawImage(L.head.cv, L.head.x0, L.head.y0, L.head.w, L.head.h);
+  drawFace(g, { blink: 0, lid: 0, squint: 0.1, pupil: 0.5, smile: 0.5, mouth: 0, whisker: 0, lookX: 0, lookY: 0 });
+  g.restore();
+}
+
+function setupIntro() {
+  const introEl = document.getElementById("intro");
+  const canvas = document.getElementById("introCanvas");
+  const coatRow = document.getElementById("introCoats");
+  const eyeRow = document.getElementById("introEyes");
+
+  coatRow.innerHTML = COATS.map(c => '<button class="sw" data-coat="' + c.id + '" aria-pressed="' + (S.coat === c.id) + '" title="' + c.name + '"><canvas></canvas></button>').join("");
+  eyeRow.innerHTML = EYES.map(e => '<button class="sw" data-eye="' + e.id + '" aria-pressed="' + (S.eyes === e.id) + '" title="' + e.name + '"><canvas></canvas></button>').join("");
+
+  coatRow.querySelectorAll("[data-coat]").forEach(b => {
+    paintCoatSwatch(b.querySelector("canvas"), COATS.find(c => c.id === b.dataset.coat));
+    b.addEventListener("click", () => {
+      S.coat = b.dataset.coat;
+      coatRow.querySelectorAll("[data-coat]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+      previewCat(canvas);
+    });
+  });
+  eyeRow.querySelectorAll("[data-eye]").forEach(b => {
+    paintEyeSwatch(b.querySelector("canvas"), EYES.find(e => e.id === b.dataset.eye));
+    b.addEventListener("click", () => {
+      S.eyes = b.dataset.eye;
+      eyeRow.querySelectorAll("[data-eye]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+      previewCat(canvas);
+    });
+  });
+
+  introEl.hidden = false;
+  requestAnimationFrame(() => previewCat(canvas));
+
+  document.getElementById("introGo").addEventListener("click", () => {
+    const n = document.getElementById("introName").value.trim();
+    S.name = n || "Мурлыка";
+    S.born = Date.now(); S.seen = Date.now();
+    introEl.hidden = true;
+    Cat.layers = null;
+    resize(); updateHUD(); save(true);
+    Sound.meow(1.1);
+    say("Привет! Я " + S.name + ".", 3000);
+  });
+}
+
+/* ---------- запуск ---------- */
+
+document.querySelectorAll(".act").forEach(b => {
+  b.addEventListener("click", () => {
+    const a = b.dataset.act;
+    if (a === "feed") openFeed();
+    else if (a === "wash") wash();
+    else if (a === "sleep") toggleSleep();
+    else if (a === "play") openPlay();
+    else if (a === "shop") openShop();
+    else if (a === "look") openLook();
+  });
+});
+
+document.getElementById("soundBtn").addEventListener("click", () => {
+  S.sound = !S.sound;
+  if (!S.sound) Sound.purr(false); else Sound.pop();
+  updateHUD(); save(true);
+});
+
+window.addEventListener("resize", () => { clearTimeout(resize._t); resize._t = setTimeout(resize, 150); });
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) { applyElapsed(); updateHUD(); save(true); }
+  else { Sound.purr(false); save(true); }
+});
+
+(function init() {
+  isNew = !load();
+  applyElapsed();
+  updateHUD();
+  resize();
+  requestAnimationFrame(frame);
+
+  // показатели тикают и при открытой игре
+  setInterval(() => { applyElapsed(); updateHUD(); save(); }, 20000);
+
+  if (isNew) setupIntro();
+  else setTimeout(() => {
+    const m = mood();
+    if (m === "hungry") say(S.name + " просит есть.");
+    else if (m === "dirty") say("Кто-то изрядно испачкался.");
+    else if (m === "sad") say("Скучал.");
+    else say("С возвращением.");
+  }, 600);
+})();
+</script>
+</body>
+</html>
